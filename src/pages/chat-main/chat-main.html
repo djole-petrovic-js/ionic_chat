@@ -1,0 +1,34 @@
+<ion-header>
+  <ion-navbar hideBackButton>
+    <button ion-button menuToggle>
+      <ion-icon name="menu"></ion-icon>
+    </button>
+    <ion-title>CHAT</ion-title>
+  </ion-navbar>
+</ion-header>
+
+<ion-content padding>
+  <p>WellCome</p>
+  <ion-list *ngIf="notifications && notifications.length === 0">
+    <ion-item>
+      You have no notifications
+    </ion-item>
+  </ion-list>
+  <ion-list *ngIf="notifications && notifications.length > 0">
+    <button (click)="dismissAllNotifications()" ion-button block>Dismiss all notifications</button>
+    <ion-item *ngFor="let notification of notifications">
+      <ion-label *ngIf="notification.id_notification_type == 1">
+        Friend Request from {{ notification.username }}
+        <button (click)="confirmFriendRequest(notification.id_user)" ion-button color="primary">Confirm</button>
+        <button (click)="dismissNotification(notification.id_notification)" ion-button color="primary">Dismiss</button>
+      </ion-label>
+      <ion-label *ngIf="notification.id_notification_type == 2">
+        User {{ notification.username }} has confirmed your request
+      </ion-label>
+      
+      <button ion-button block *ngIf="notification.id_notification_type == 3">
+        asd
+      </button>
+    </ion-item>
+  </ion-list>
+</ion-content>

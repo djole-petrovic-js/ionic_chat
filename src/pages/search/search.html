@@ -1,0 +1,24 @@
+<ion-header>
+  <ion-navbar hideBackButton>
+    <button ion-button menuToggle>
+      <ion-icon name="menu"></ion-icon>
+    </button>
+    <ion-title>Search for Chats</ion-title>
+  </ion-navbar>
+</ion-header>
+
+
+<ion-content padding>
+  <ion-searchbar
+  [(ngModel)]="searchQuery"
+  [showCancelButton]="shouldShowCancel"
+>
+</ion-searchbar>
+  <button ion-button block (click)="search()">Search</button>
+  <ion-list>
+    <ion-item *ngFor="let u of users">
+     {{ u.username }}
+     <button ion-button (click)="addFriend(u.id_user)">Add Friend</button>
+    </ion-item>
+  </ion-list>
+</ion-content>

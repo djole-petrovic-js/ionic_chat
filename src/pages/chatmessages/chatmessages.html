@@ -1,0 +1,21 @@
+<ion-header>
+  <ion-navbar hideBackButton>
+    <button ion-button menuToggle>
+      <ion-icon name="menu"></ion-icon>
+    </button>
+    <ion-title>Write something :)</ion-title>
+  </ion-navbar>
+</ion-header>
+
+<ion-content padding>
+  <ion-list>
+    <ion-item *ngFor="let m of messages">
+      {{ m.user == null ? 'You' : m.user }} : {{ m.message }}
+    </ion-item>
+  </ion-list>
+</ion-content>
+
+<ion-footer>
+  <ion-input [(ngModel)]="message" type="text" placeholder="message..."></ion-input>
+  <button (click)="sendMessage()" ion-button>Send</button>
+</ion-footer>
