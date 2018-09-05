@@ -1,3 +1,9 @@
 page-home {
-
+  .login {
+    justify-content: center;
+    display: flex!important;
+    align-items: center!important;
+    flex-direction: column;
+    height: 80%;
+  }
 }

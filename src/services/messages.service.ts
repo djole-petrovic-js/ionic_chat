@@ -1,61 +1,92 @@
 import { Injectable } from '@angular/core';
 import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
+import { NavController, App } from "ionic-angular/index";
 
 @Injectable()
 export class MessagesService {
   private allMessages = {};
+  private unreadMessages = {};
   private messagesToDelete:number[] = [];
   private currentUserToChatWith:string;
   private initialMessagesAreLoaded:boolean = false;
   private currentUserID;
 
+  private nav:NavController;
+  private app:App;
+
   constructor(
     private events:Events,
-    private apiService:APIService
+    private apiService:APIService,
+    private application:App
   ) {
-    this.events.subscribe('start:chatting',({ username,id }) => {
-      this.currentUserToChatWith = username;
-      this.currentUserID = id;
+    this.app = application;
+    
+    this.events.subscribe('start:chatting',this.startChatting.bind(this));
+    this.events.subscribe('message:send',this.messageSend.bind(this));
+    this.events.subscribe('message:new-message',this.newMessage.bind(this));
+    this.events.subscribe('user:logout',this.userLogOut.bind(this));
+  }
 
-      this.events.publish('start:chatting-ready');
-      this._deleteInitialMessages(id);
+  private startChatting({ username,id }) {
+    this.currentUserToChatWith = username;
+    this.currentUserID = id;
+
+    this.events.publish('start:chatting-ready');
+    this._deleteInitialMessages(id);
+    
+    delete this.unreadMessages[username];
+  }
+
+  private messageSend(message) {
+    if ( this.allMessages[this.currentUserToChatWith] ) {
+      this.allMessages[this.currentUserToChatWith].push({
+        user:null , message
+      });
+    } else {
+      this.allMessages[this.currentUserToChatWith] = [{user:null,message}];
+    }
+
+    this.events.publish('message:send-ready',{
+      userID:this.currentUserID,
+      message:message
     });
+  }
 
-    this.events.subscribe('message:send',(message) => {
-      if ( this.allMessages[this.currentUserToChatWith] ) {
-        this.allMessages[this.currentUserToChatWith].push({
-          user:null , message
-        });
-      } else {
-        this.allMessages[this.currentUserToChatWith] = [{user:null,message}];
+  private newMessage(data) {
+    const messageToStore = { user:data.senderUsername , message:data.message };
+    // If the page is ChatMessages and current user to chat with is
+    // user sending the message, dont store it as unread message
+    this.nav = this.application.getActiveNav();
+
+    if ( !(
+      this.nav.getActive().name === 'ChatMessages' && 
+      data.senderUsername === this.currentUserToChatWith
+    ) ) {
+      // now we store the message as unread
+      if ( !this.unreadMessages[data.senderUsername] ) {
+        this.unreadMessages[data.senderUsername] = [];
       }
 
-      this.events.publish('message:send-ready',{
-        userID:this.currentUserID,
-        message:message
-      });
-    });
+      this.unreadMessages[data.senderUsername].push(messageToStore);
+      this.events.publish('message:stored-unread-message');
+    }
 
-    this.events.subscribe('message:new-message',(data) => {
-      if ( this.allMessages[data.senderUsername] ) {
-        this.allMessages[data.senderUsername].push({
-          user:data.senderUsername , message:data.message
-        });
-      } else {
-        this.allMessages[data.senderUsername] = [{user:null,message:data.message}];
-      }
+    if ( this.allMessages[data.senderUsername] ) {
+      this.allMessages[data.senderUsername].push(messageToStore);
+    } else {
+      this.allMessages[data.senderUsername] = [messageToStore];
+    }
 
-      this.events.publish('message:message-recieved',{
-        user:data.senderUsername,
-        message:data.message
-      });
+    this.events.publish('message:message-recieved',{
+      user:data.senderUsername,
+      message:data.message
     });
+  }
 
-    this.events.subscribe('user:logout',() => {
-      this.allMessages = {};
-      this.refreshInitialMessages();
-    });
+  private async userLogOut() {
+    this.allMessages = {};
+    await this.refreshInitialMessages();
   }
 
   public getMessages() {
@@ -66,20 +97,43 @@ export class MessagesService {
     return this.allMessages[this.currentUserToChatWith];
   }
 
-  public getInitialMessages():void {
-    if ( !this.initialMessagesAreLoaded ) {
-      this.apiService
-      .getInitialMessages()
-      .subscribe((messages) => {
-        this.initialMessagesAreLoaded = true;
+  public removeLocalMessage(msg) {
+    const msgIndex = this.allMessages[this.currentUserToChatWith].findIndex(x => {
+      return x.user === msg.user && x.message === msg.message;
+    });
 
-        if ( messages.length !== 0 ) {
-          this._storeInitialMessages(messages);
-        }
-      },(err) => {
-        console.log(err);
-      });
+    if ( msgIndex !== -1 ) {
+      this.allMessages[this.currentUserToChatWith].splice(msgIndex,1);
     }
+  }
+
+  public getUnreadMessages() {
+    return this.unreadMessages;
+  }
+
+  public getInitialMessages() {
+    return new Promise((resolve,reject) => {
+      if ( !this.initialMessagesAreLoaded ) {
+        this.apiService
+          .getInitialMessages()
+          .subscribe((messages) => {
+            this.initialMessagesAreLoaded = true;
+            this.allMessages = {};
+
+            if ( messages.length !== 0 ) {
+              this._storeInitialMessages(messages);
+            }
+
+            // maybe find another way to Deep Clone?
+            this.unreadMessages = JSON.parse(JSON.stringify(this.allMessages));
+            resolve(this.allMessages);
+          },(err) => {
+            reject(err);
+          });
+      } else {
+        resolve(this.allMessages);
+      }
+    });
   }
 
   public refreshInitialMessages():void {
@@ -89,9 +143,7 @@ export class MessagesService {
 
   private _storeInitialMessages(messages):void {
     for ( const { message,senderUsername,senderID } of messages ) {
-      const msg = {
-        message,user:senderUsername
-      };
+      const msg = { message,user:senderUsername };
 
       if ( this.allMessages[senderUsername] ) {
         this.allMessages[senderUsername].push(msg);
@@ -108,13 +160,12 @@ export class MessagesService {
   private _deleteInitialMessages(userID:number):void {
     if ( this.messagesToDelete.indexOf(userID) !== -1 ) {
       this.apiService.deleteInitialMessages(userID)
-      .subscribe((response) => {
-        const index:number = this.messagesToDelete.indexOf(userID);
-
-        this.messagesToDelete.splice(index,1);
-      },(err) => {
-        console.log(err);
-      });
+        .subscribe(() => {
+          this.messagesToDelete.splice(this.messagesToDelete.indexOf(userID),1);
+        },(err) => {
+          // ne radi preko error resolvera...
+          console.log(err);
+        });
     }
   }
 }

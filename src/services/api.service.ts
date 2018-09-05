@@ -4,11 +4,12 @@ import { Storage } from '@ionic/storage';
 import { Observable } from 'rxjs/Rx';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
+import { Config } from '../Libs/Config';
 
 @Injectable()
 export class APIService {
-  private token;
-  private mainURL = 'http://localhost:3000/';
+  private token:string;
+  private mainURL = Config.getConfig('API_URL');
   private deleteInitialMessagesURL:string = this.mainURL + 'api/messages/delete_messages/';
   private initialMessagesURL:string = this.mainURL + 'api/messages/';
   private dismissAllNotificationsURL:string = this.mainURL + 'api/notifications/dismiss_all';
@@ -16,160 +17,190 @@ export class APIService {
   private getAllFriendsURL:string = this.mainURL + 'api/friends';
   private confirmFriendURL:string = this.mainURL + 'api/friends/confirm_friend';
   private addFriendURL:string = this.mainURL + 'api/friends/add_friend';
+  private deleteFriendURL:string = this.mainURL + 'api/friends/delete_friend';
   private notificationsURL:string = this.mainURL + 'api/notifications/';
   private isLoggedInURL:string = this.mainURL + 'api/login/check_login';
   private searchURL:string = this.mainURL + 'api/search';
+  private changePasswordURL:string = this.mainURL + 'api/users/changepassword';
+  private userInfoURL:string = this.mainURL + 'api/users/userinfo';
+  private refreshTokenURL:string = this.mainURL + 'api/login/refresh_token';
+  private pendingRequestsURL:string = this.mainURL + 'api/friends/pending_requests';
+  private cancelRequestURL:string = this.mainURL + 'api/friends/cancel_request';
+  private setBinarySettingsURL:string = this.mainURL + 'api/users/set_binary_settings';
+  private deleteAccountURL:string = this.mainURL + 'api/users/delete_account';
+  private grantAccessTokenURL:string = this.mainURL + 'api/login/grant_access_token';
+  private changePinURL:string = this.mainURL + 'api/users/change_pin';
 
   constructor(
     private http:Http,
     private storage:Storage
-  ) { 
+  ) { }
 
-  }
-
-  public setToken(token):void {
+  public setToken(token:string):void {
     this.token = token;
   }
 
-  public isLoggedIn() {
-    return new Promise((resolve,reject) => {
-      this.getToken().then((token) => {
-        if ( !token ) {
-          return reject('Not authorized');
-        }
-
-        const headers = new Headers();
-
-        headers.append('Authorization','JWT ' + token);
-
-        this._sendTokenAndVerify(headers)
-        .subscribe((res) => {
-          if ( res.isLoggedIn === true ) {
-            resolve(true);
-          } else {
-            reject('not authorized');
-          }
-        },(err) => {
-           reject('not authorized');
-        });
-      }).catch((err) => {
-        return reject(err);
-      });
-    });
-  }
-
-  public getNotifications() {
+  private _headers():Headers {
     const headers = new Headers();
 
     headers.append('Content-Type','application/json');
     headers.append('Authorization','JWT ' + this.token);
 
-    return this.http.get(this.notificationsURL,{ headers })
+    return headers;
+  }
+
+  public async setBinarySettings(body) {
+    const response = await this.http.post(this.setBinarySettingsURL,body,{ headers:this._headers() }).toPromise();
+
+    return response.json();
+  }
+
+  public async changePin(body) {
+    try {
+      const response = await this.http.post(this.changePinURL,body,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
+  public isLoggedIn() {
+    return new Promise(async (resolve,reject) => {
+      const token = await this.getToken();
+
+      if ( !token ) {
+        return reject(false);
+      }
+
+      this.token = token;
+      
+      this
+        .http
+        .get(this.isLoggedInURL , { headers:this._headers() })
+        .map((res) => res.json())
+        .subscribe((res) => {
+          if ( res.isLoggedIn ) {
+            return resolve(true);
+          }
+
+          reject(false);
+        },() => {
+          reject(false);
+        });
+    });
+  }
+
+  public async refreshToken() {
+    const response= await this.http.post(this.refreshTokenURL,{},{ headers:this._headers() }).toPromise();
+
+    return response.json();
+  }
+
+  public async fetchUserInfo() {
+    const user = await this.http.get(this.userInfoURL,{ headers:this._headers() }).toPromise();
+
+    return user.json();
+  }
+
+  public channgePassword(options) {
+    return this.http.post(this.changePasswordURL,options,{ headers:this._headers() }).toPromise();
+  }
+
+  public getNotifications() {
+    return this.http.get(this.notificationsURL,{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
   public dismissNotification(notificationID:string) {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.post(this.dismissOneNofiticationURL,{ notificationID },{ headers })
+    return this.http.post(this.dismissOneNofiticationURL,{ notificationID },{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
   public dismissAllNotifications() {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.post(this.dismissAllNotificationsURL,{  },{ headers })
+    return this.http.post(this.dismissAllNotificationsURL,{  },{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
+  public async getPendingRequests() {
+    const response = await this.http.get(this.pendingRequestsURL,{ headers:this._headers() }).toPromise();
+
+    return response.json();
+  }
+
+  public async cancelRequest(body) {
+    const response = await this.http.post(this.cancelRequestURL,body,{ headers:this._headers() }).toPromise();
+
+    return response.json();
+  }
+
   public getAllFriends() {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.get(this.getAllFriendsURL,{ headers })
+    return this.http.get(this.getAllFriendsURL,{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));    
   }
 
   public addFriend(id:string) {
-    const headers = new Headers();
+    return this.http.post(this.addFriendURL,{ id },{ headers:this._headers() })
+      .map((res) => res.json())
+      .catch((error) => Observable.throw(error || 'Server error'));
+  }
 
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.post(this.addFriendURL,{ id },{ headers })
+  public deleteFriend(IdFriendToRemove) {
+    return this.http.post(this.deleteFriendURL,{ IdFriendToRemove },{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
   public confirmFriendRequest(id:string) {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.post(this.confirmFriendURL,{ id },{ headers })
+    return this.http.post(this.confirmFriendURL,{ id },{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
   public searchFriends(q:string) {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.post(this.searchURL,{ q },{ headers })
+    return this.http.post(this.searchURL,{ q },{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
   public getInitialMessages() {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.get(this.initialMessagesURL,{ headers })
+    return this.http.get(this.initialMessagesURL,{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
   public deleteInitialMessages(userID:number) {
-    const headers = new Headers();
-
-    headers.append('Content-Type','application/json');
-    headers.append('Authorization','JWT ' + this.token);
-
-    return this.http.post(this.deleteInitialMessagesURL,{ userID },{ headers })
+    return this.http.post(this.deleteInitialMessagesURL,{ userID },{ headers:this._headers() })
       .map((res) => res.json())
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
-  private _sendTokenAndVerify(headers) {
-    return this.http.get(this.isLoggedInURL , { headers })
-      .map(res => res.json())
-      .catch((error) => Observable.throw(error.json() || 'Server error'))
+  public async deleteAccount(body) {
+    const response= await this.http.post(this.deleteAccountURL,body,{ headers:this._headers() }).toPromise();
+
+    return response.json();
   }
 
-  public getToken() {
-    return new Promise((resolve,reject) => {
-      this.storage.get('token').then((token) => {
-        resolve(token);
-      }).catch((err) => {
-        reject(err);
-      });
-    });
+  public async grantAccessToken(body) {
+    const headers = new Headers();
+    headers.append('Content-Type','application/json');
+
+    const response= await this.http.post(this.grantAccessTokenURL,body,{ headers }).toPromise();
+
+    return response.json();
+  }
+
+  public async getToken() {
+    try {
+      const token = await this.storage.get('token');
+
+      return token;
+    } catch(e) {
+      throw e;
+    }
   }
 }

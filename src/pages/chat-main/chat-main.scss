@@ -1,3 +1,31 @@
 page-chat-main {
+  ion-spinner * {
+    width: 30px;
+    height: 30px;
+    stroke: #444;
+    fill: #222;
+    text-align: center;
+  }
 
+  .btn-friend {
+    height: 70px !important;
+  }
+
+  .red {
+    color:red;
+  }
+
+  .green {
+    color:#43ee43;
+  }
+
+  .border-red {
+    height: 60px !important;
+    border:2px solid red;
+  }
+
+  .border-green {
+    height: 60px !important;
+    border: 2px solid #43ee43;
+  }
 }

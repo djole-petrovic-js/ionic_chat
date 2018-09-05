@@ -6,9 +6,10 @@ import { LogIn } from '../pages/login/login';
 import { Logout } from '../pages/logout/logout';
 import { Register } from '../pages/register/register';
 import { ChatMain } from '../pages/chat-main/chat-main';
-import { Friends } from '../pages/friends/friends';
 import { Search } from '../pages/search/search';
 import { ChatMessages } from '../pages/chatmessages/chatmessages';
+import { Settings } from '../pages/settings/settings';
+import { About } from '../pages/about/about';
 
 @Component({
   templateUrl: 'app.html'
@@ -19,8 +20,9 @@ export class MyApp {
   rootPage: any = LogIn;
 
   pages: Array<{title: string, component: any}>;
-  pagesAll;
+  pagesUnathorized;
   pagesAuthorized;
+  forAll;
 
   constructor(public platform: Platform, private menu: MenuController,private events:Events) {
     this.initializeApp();
@@ -40,27 +42,33 @@ export class MyApp {
     });
 
     this.events.subscribe('user:logout',() => {
-      this.pages = this.pagesAll;
+      this.pages = [...this.pagesUnathorized,...this.forAll];
 
       this.openPage({
         component:LogIn
       });
     });
 
-    // used for an example of ngFor and navigation
-    this.pagesAll = [
+    // pages for all Users
+    this.forAll = [
+      { title:'About', component:About }
+    ]
+
+    // pages for unauthorzied users
+    this.pagesUnathorized = [
       { title: 'Log in', component: LogIn },
       { title: 'Register', component: Register },
     ];
 
+    // pages for authorized users
     this.pagesAuthorized = [
       { title: 'Main', component: ChatMain },
-      { title: 'Friends', component:Friends },
       { title: 'Search', component:Search },
+      { title: 'Settings', component:Settings },
       { title: 'Log Out', component:Logout },
     ];
 
-    this.pages = this.pagesAll;
+    this.pages = [...this.pagesUnathorized,...this.forAll];
   }
 
   initializeApp() {
@@ -75,7 +83,14 @@ export class MyApp {
   openPage(page) {
     // Reset the content nav to have just this page
     // we wouldn't want the back button to show in this scenario
-    this.nav.setRoot(page.component);
+    if (
+      page.component === ChatMain ||
+      page.component === LogIn
+    ) {
+      this.nav.setRoot(page.component);
+    } else {
+      this.nav.push(page.component);
+    }
   }
 
   changePage(page) {
@@ -83,6 +98,6 @@ export class MyApp {
   }
 
   chageMenus() {
-    this.pages = this.pagesAuthorized;
+    this.pages = [...this.pagesAuthorized,...this.forAll];
   }
 }

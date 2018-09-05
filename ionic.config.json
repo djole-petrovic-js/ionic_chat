@@ -1,5 +1,9 @@
 {
   "name": "chat",
   "app_id": "",
-  "type": "ionic-angular"
+  "type": "ionic-angular",
+  "proxies":[{
+    "path":"/api",
+    "proxyUrl":"http://104.248.25.211/"
+  }]
 }

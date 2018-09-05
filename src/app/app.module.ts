@@ -2,14 +2,16 @@ import { NgModule, ErrorHandler } from '@angular/core';
 import { IonicApp, IonicModule, IonicErrorHandler } from 'ionic-angular';
 import { MyApp } from './app.component';
 import { IonicStorageModule } from '@ionic/storage';
+import { Device } from 'ionic-native';
 
 import { ChatMain } from '../pages/chat-main/chat-main';
 import { LogIn } from '../pages/login/login';
 import { Logout } from '../pages/logout/logout';
 import { Register } from '../pages/register/register';
 import { Search } from '../pages/search/search';
-import { Friends } from '../pages/friends/friends';
 import { ChatMessages } from '../pages/chatmessages/chatmessages';
+import { Settings } from '../pages/settings/settings';
+import { About } from '../pages/about/about';
 
 import { AuthenticationService } from '../services/authentication.service';
 import { APIService } from '../services/api.service';
@@ -24,13 +26,17 @@ import { FriendsService } from '../services/friends.service';
     LogIn,
     Register,
     ChatMain,
-    Friends,
     Logout,
     Search,
-    ChatMessages
+    ChatMessages,
+    Settings,
+    About
   ],
   imports: [
-    IonicModule.forRoot(MyApp),
+    IonicModule.forRoot(MyApp,{
+      scrollAssist: false, 
+      autoFocusAssist: false
+    }),
     IonicStorageModule.forRoot(),
   ],
   bootstrap: [IonicApp],
@@ -39,12 +45,14 @@ import { FriendsService } from '../services/friends.service';
     LogIn,
     Register,
     ChatMain,
-    Friends,
     Logout,
     Search,
-    ChatMessages
+    ChatMessages,
+    Settings,
+    About
   ],
   providers: [
+    Device,
     FriendsService,
     SocketService,
     AuthenticationService,

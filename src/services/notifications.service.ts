@@ -42,16 +42,15 @@ export class NotificationsService {
       }
 
       this.apiService
-      .getNotifications()
-      .subscribe((res) => {
-        this.notifications = res;
-        this.areNotificationsLoaded = true;
-        
-        resolve(this.notifications);
-      },(err) => {
-        console.log(err);
-        reject(err);
-      });
+        .getNotifications()
+        .subscribe((res) => {
+          this.notifications = res;
+          this.areNotificationsLoaded = true;
+          
+          resolve(this.notifications);
+        },(err) => {
+          reject(err);
+        });
     });
   }
 }

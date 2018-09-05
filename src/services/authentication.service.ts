@@ -4,31 +4,48 @@ import { Storage } from '@ionic/storage';
 import { Observable } from 'rxjs/Rx';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
+import { Config } from '../Libs/Config';
 
 @Injectable()
 export class AuthenticationService {
   private token = null;
-  private isLoggedInURL:string = 'http://localhost:3000/api/check_user';
-  private logInURL:string = 'http://localhost:3000/api/login';
-  private registerURL:string = 'http://localhost:3000/api/register';
-  private headers;
+  private mainUrl:string = Config.getConfig('API_URL');
+  private logInURL:string = this.mainUrl + 'api/login';
+  private logOutURL:string = this.mainUrl + 'api/login/logout';
+  private registerURL:string = this.mainUrl + 'api/register';
+  private checkEmailUsernameURL:string = this.mainUrl + 'api/register/checkemailusername';
+  private resendConfirmationEmailURL:string = this.mainUrl + 'api/register/resend_confirmation_email';
 
-  constructor(private http:Http,private storage:Storage) {
-    this.headers = new Headers();
+  constructor(private http:Http,private storage:Storage) {}
 
-    this.headers.append('Content-Type','application/json');
+  public logIn(body) {
+    return this._execute(this.logInURL,body);
   }
 
-  public logIn(options) {
-    return this.http.post(this.logInURL,options,{ headers:this.headers })
-      .map((res) => res.json())
-      .catch((error) => Observable.throw(error.json() || 'Server error'));
+  public register(body) {
+    return this._execute(this.registerURL,body);
+  }
+  
+  public checkEmailUsername(body) {
+    return this._execute(this.checkEmailUsernameURL,body);
+  }
+  
+  public resendConfirmationEmail(body) {
+    return this._execute(this.resendConfirmationEmailURL,body);
   }
 
-  public register(options) {
-    return this.http.post(this.registerURL,options,{ headers:this.headers })
+  private _execute(url,body,headers = this._headers()) {
+    return this.http.post(url,body,{ headers })
       .map((response) => response.json())
       .catch((error) => Observable.throw(error.json() || 'Server error'));
+  }
+
+  private _headers() {
+    const headers = new Headers();
+
+    headers.append('Content-Type','application/json');
+
+    return headers;
   }
 
   public storeToken(token):void {
@@ -36,7 +53,19 @@ export class AuthenticationService {
     this.storage.set('token',token);
   }
 
-  public logOut():void {
-    this.storage.clear();
+  public async logOut() {
+    try {
+      const token = await this.storage.get('token');
+      const headers = this._headers();
+
+      await Promise.all([
+        this.storage.remove('token'),
+        this.storage.remove('refreshToken')
+      ]);
+
+      headers.append('Authorization','JWT ' + token);
+
+      await this._execute(this.logOutURL,{ },headers).toPromise();
+    } catch(e) { }
   }
 }

@@ -1,3 +1,62 @@
 page-chatmessages {
+  .no-scroll {
+    .scroll-content {
+        overflow: hidden !important;
+    }
+  }
 
+  .list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  //delete buttons
+  .left {
+    float:left;
+    width:8%;
+    height: 10%;
+    background:white;
+    text-align:center;
+    color:blue;
+    border:2px solid blue;
+    border-radius: 15%;
+  }
+
+  //delete buttons
+  .right {
+    float:right;
+    width:8%;
+    height: 10%;
+    background:blue;
+    text-align:center;
+    color:white;
+    border-radius: 15%;
+    border:2px solid blue; 
+  }
+
+  .item-inner {
+    border-radius: 4%;
+    width:75%;
+    font-size: 110%;
+    padding: 0.5% 5% 0.5% 5%;
+    // width:auto;
+    width: 90%;
+    display:block;
+  }
+
+  ion-item.red > .item-inner{
+    background: blue;
+    color:white;
+    margin-bottom:5%;
+    float:left;
+  }
+
+  ion-item.blue > .item-inner {
+    background: white;
+    color:blue;
+    margin-bottom:5%;
+    float:right;
+    border:2px solid blue;
+    // text-align: right;
+  }
 }

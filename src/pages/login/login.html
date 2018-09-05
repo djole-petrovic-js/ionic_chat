@@ -1,30 +1,50 @@
 <ion-header>
-  <ion-navbar>
+  <ion-navbar color="navBarColor">
     <button ion-button menuToggle>
       <ion-icon name="menu"></ion-icon>
     </button>
-    <ion-title>Please log in</ion-title>
+    <ion-title>NHC | Log in</ion-title>
   </ion-navbar>
 </ion-header>
 
 <ion-content padding>
-  <ion-list>
+  <!-- login with email and password -->
+  <ion-list class="login" *ngIf="userInfo && !userInfo.pin_login_enabled">
     <ion-item>
-      <ion-label>E-Mail</ion-label>
-      <ion-input [(ngModel)]="email" type="text" placeholder="e-mail..." ></ion-input>
+      <ion-label>E-Mail : </ion-label>
+      <ion-input [(ngModel)]="user.email" type="text"></ion-input>
     </ion-item>
     <ion-item>
-      <ion-label>Password</ion-label>
-      <ion-input [(ngModel)]="password" type="password" placeholder="password..." ></ion-input>
+      <ion-label>Password : </ion-label>
+      <ion-input [(ngModel)]="user.password" type="password"></ion-input>
     </ion-item>
     <ion-item>
       <button (click)="logIn()" ion-button color="primary" block>Log in</button>
     </ion-item>
+    <br>
+    <ion-item text-wrap>
+      <p>Account not activated? Resend confirmation email bellow!</p>
+      <button (click)="resendConfirmationEmail()" ion-button color="primary" block>Resend!</button>
+    </ion-item>
   </ion-list>
-  <ion-list>
+
+  <!-- login with pin -->
+  <ion-list class="login" *ngIf="userInfo && userInfo.pin_login_enabled">
     <ion-item>
-      <p>Dont have an account> Sign up here</p>
+      <ion-label>PIN : </ion-label>
+      <ion-input [(ngModel)]="pin" type="password"></ion-input>
+    </ion-item>
+    <ion-item>
+      <button (click)="logInWithPin()" ion-button color="primary" block>Log in</button>
+    </ion-item>
+  </ion-list>
+
+  <ion-list *ngIf="userInfo">
+    <ion-item>
+      <p>Dont have an account? Sign up bellow!</p>
       <button (click)="signUp()" ion-button color="primary" block>Sign Up</button>
     </ion-item>
   </ion-list>
+
+  
 </ion-content>

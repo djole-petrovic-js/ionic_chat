@@ -1,21 +1,29 @@
 <ion-header>
-  <ion-navbar hideBackButton>
-    <button ion-button menuToggle>
-      <ion-icon name="menu"></ion-icon>
-    </button>
-    <ion-title>Write something :)</ion-title>
+  <ion-navbar hideBackButton="false" color="navBarColor">
+    <ion-buttons end>
+      <button ion-button menuToggle>
+        <ion-icon name="menu"></ion-icon>
+      </button>
+    </ion-buttons>
+    <ion-title>NHC | Chat</ion-title>
   </ion-navbar>
 </ion-header>
 
-<ion-content padding>
-  <ion-list>
-    <ion-item *ngFor="let m of messages">
-      {{ m.user == null ? 'You' : m.user }} : {{ m.message }}
-    </ion-item>
+<ion-content padding #content [class]="scrollable">
+  <ion-list class="list">
+    <div *ngFor="let message of messages; let i = index;">
+      <ion-item  text-wrap [attr.class]="message.user == null ? 'red' : 'blue'">
+        {{ message.user == null ? 'You' : message.user }} : {{ message.message }}
+      </ion-item>
+      <button (click)="removeMessage(message,i)"
+        color="danger"
+        [attr.class]="message.user == null ? 'right' : 'left'"
+      >X</button>
+    </div>
   </ion-list>
 </ion-content>
 
 <ion-footer>
   <ion-input [(ngModel)]="message" type="text" placeholder="message..."></ion-input>
-  <button (click)="sendMessage()" ion-button>Send</button>
+  <button (click)="sendMessage()" ion-button full>Send</button>
 </ion-footer>
