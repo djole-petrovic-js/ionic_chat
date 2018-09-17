@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { Events, AlertController } from 'ionic-angular';
+import { Events, AlertController, Alert } from 'ionic-angular';
 import { APIService } from '../../services/api.service';
 import { NotificationsService } from '../../services/notifications.service';
 import { MessagesService } from '../../services/messages.service';
@@ -7,26 +7,33 @@ import { FriendsService } from '../../services/friends.service';
 import { SocketService } from '../../services/socket.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
 import { TokenService } from '../../services/token.service';
-import { AuthenticationService } from '../../services/authentication.service';
+import { SettingsService } from '../../services/settings.service';
 import { Platform,ToastController } from 'ionic-angular';
-import { App } from "ionic-angular/index";
+import { BackgroundMode, Network } from 'ionic-native';
+import { App, LoadingController } from "ionic-angular/index";
 import { Subscription } from 'rxjs';
+import { NetworkService } from '../../services/network.service';
 
 @Component({
   selector: 'page-chat-main',
   templateUrl: 'chat-main.html',
-  providers:[ErrorResolverService,TokenService]
 })
 export class ChatMain {
   private notifications;
   private friends;
   private pendingRequests;
-  private loading:boolean;
   private unreadMessages = {};
   private backBtnExitApp:boolean = false;
-  private onResumeSubscription = null;
+  private onResumeSubscriber:Subscription;
+  private onPauseSubscriber:Subscription;
+  private onConnectSubscriber:Subscription;
+  private onDisconnectSubscriber:Subscription;
+  private backButtonDeregister:Function;
+  private disconnectAlert:Alert;
+  private reconnectionStarted:boolean = false;
 
   constructor (
+    private networkService:NetworkService,
     private apiService:APIService,
     private events:Events,
     private notificationsService:NotificationsService,
@@ -36,51 +43,149 @@ export class ChatMain {
     private errorResolverService:ErrorResolverService,
     private alertController:AlertController,
     private tokenService:TokenService,
-    private authenticationService:AuthenticationService,
+    private settingsService:SettingsService,
     private platform:Platform,
     private app:App,
-    private toastController:ToastController
+    private toastController:ToastController,
+    private loadingController:LoadingController,
   ) {
-    this.loading = true;
     this.tokenService.startRefreshing();
 
     this.platform.ready().then(() => {
-      this.platform.registerBackButtonAction(this.onBackBtnClick.bind(this));
+      // if settings are loaded, that means we are not on this page first time
+      // so dont register callbacks twice...
+      if ( !this.settingsService.areSettingsLoaded() ) {
+        this.events.subscribe('user:logout',() => {
+          this.onPauseSubscriber.unsubscribe();
+          this.onResumeSubscriber.unsubscribe();
+          this.onConnectSubscriber.unsubscribe();
+          this.onDisconnectSubscriber.unsubscribe();
+          this.backButtonDeregister();
+        });
 
-      if ( !this.onResumeSubscription ) {
-        this.onResumeSubscription = this.platform.resume.subscribe(this.onResume.bind(this));
+        this.onConnectSubscriber = Network.onConnect().subscribe(this.onConnect.bind(this));
+        this.onDisconnectSubscriber = Network.onDisconnect().subscribe(this.onDisconnect.bind(this));
+
+        BackgroundMode.setDefaults({ silent:true });
+        BackgroundMode.enable();
+
+        this.backButtonDeregister = this.platform.registerBackButtonAction(this.onBackBtnClick.bind(this));
+        this.onResumeSubscriber = this.platform.pause.subscribe(this.onPause.bind(this));
+        this.onPauseSubscriber = this.platform.resume.subscribe(this.onResume.bind(this));
       }
     });
-    
+  }
+
+  private subscribeEvents() {
     this.events.subscribe('friends:user-confirmed',this.friendUserConfirmed.bind(this));
     this.events.subscribe('message:stored-unread-message',this.storedUnreadMessage.bind(this));
-    this.events.subscribe('friend:friend-you-removed',this.friendYouRemoved.bind(this));
+    this.events.subscribe('friend_you_removed',this.friendYouRemoved.bind(this));
     this.events.subscribe('friend:login',this.friendLogIn.bind(this));
     this.events.subscribe('friend:logout',this.friendLogOut.bind(this));
   }
 
-  private async onResume() {
-    const loggedIn = await this.tokenService.checkStatusOnResume();
+  private unSubscribeEvents() {
+    this.events.unsubscribe('friend:login');
+    this.events.unsubscribe('friend:logout');
+    this.events.unsubscribe('friends:user-confirmed');
+    this.events.unsubscribe('friend_you_removed');
+    this.events.unsubscribe('message:stored-unread-message');
+  }
 
-    if ( !loggedIn ) {
-      await this.authenticationService.logOut();
-      this.events.publish('user:logout');
+  private async onConnect() {
+    if ( this.reconnectionStarted ) return;
+
+    if ( this.disconnectAlert ) {
+      await this.disconnectAlert.dismiss();
+    }
+
+    let loading;
+
+    try {
+      this.reconnectionStarted = true;
+
+      loading = this.loadingController.create({
+        spinner:'bubbles',
+        content:'Reconnecting...'
+      });
+
+      this.socketService.getSocket().connect();
+      await loading.present();
+      await this.platform.ready();
+      await this.tokenService.checkLoginStatus();
+      await this.socketService.getConnection();
+      const { operations } = await this.apiService.getSocketOperations();
+      await this.apiService.deleteOperations({  });
+      await this.socketService.executeSocketOperations(operations);
+
+      const toast = this.toastController.create({
+        duration:3000,
+        position:'top',
+        message:'Reconnection successful!'
+      });
+
+      await toast.present();
+    } catch(e) {
+      if ( !BackgroundMode.isActive() ) {
+        this.errorResolverService.presentAlertError('Reconnecting Error',e.errorCode);
+      }
+    } finally {
+      if ( loading ) { await loading.dismiss(); }
+      this.reconnectionStarted = false;
     }
   }
 
-  private onBackBtnClick() {
+  private async onDisconnect() {
+    if ( this.reconnectionStarted ) return;
+
+    if ( BackgroundMode.isActive() ) return;
+
+    this.socketService.getSocket().disconnect();
+
+    this.disconnectAlert = this.alertController.create({
+      title:'Connection Error',
+      message:'No internet connection.',
+      buttons:['OK']
+    });
+
+    await this.disconnectAlert.present();
+  }
+
+  private async onPause() {
+    this.tokenService.stopRefreshing();
+  }
+
+  private async onResume() {
+    if ( !this.networkService.hasInternetConnection() ) {
+      const toast = this.toastController.create({
+        duration:3000,
+        position:'top',
+        message:'No Internet Connection!'
+      });
+  
+      toast.present();
+    } else {
+      await this.tokenService.checkLoginStatus();
+      this.tokenService.startRefreshing();
+      await this.socketService.executeSocketOperations();
+    }
+  }
+
+  private async onBackBtnClick() {
     const overlay = this.app._appRoot._overlayPortal.getActive();
     const nav = this.app.getActiveNav();
 
-    if(overlay && overlay.dismiss) {
+    if ( overlay && overlay.dismiss ) {
       return overlay.dismiss();
     }
 
-    if(nav.canGoBack()) {
+    if ( nav.canGoBack() ) {
       return nav.pop();
     }
 
     if ( this.backBtnExitApp ) {
+      this.apiService.changeLoginStatus({ status:0 });
+
       this.platform.exitApp();
     } else {
       const toast = this.toastController.create({
@@ -91,7 +196,7 @@ export class ChatMain {
 
       toast.present();
       this.backBtnExitApp = true;
-      setTimeout(() => this.backBtnExitApp = false,1500);
+      setTimeout(() => this.backBtnExitApp = false,3000);
     }
   }
 
@@ -109,68 +214,83 @@ export class ChatMain {
   }
 
   private friendYouRemoved(data) {
-    this.friends.splice(this.friends.find(x => x.id_user === data.IdUserRemoving),1)
+    const friendIndex = this.friends.findIndex(x => x.id_user === data.IdUserRemoving);
+
+    if ( friendIndex !== -1 ) {
+      this.friends.splice(friendIndex,1);
+    }
   }
 
   private friendLogIn(data) {
-    this.friends.find(x => x.id_user === data.friendID).online = 1;
+    try {
+      this.friends.find(x => x.id_user === data.friendID).online = 1;
+    } catch(e) { }
   }
 
   private friendLogOut(data) {
-    this.friends.find(x => x.id_user === data.friendID).online = 0;
+    try {
+      this.friends.find(x => x.id_user === data.friendID).online = 0;
+    } catch(e) { }
   }
 
-  private async ionViewDidLoad() {
-    try {
-      await this.socketService.getConnection();
-
-      if ( !this.socketService.getSocket().connected ) {
-        throw new Error('Not connected');
-      }
-    } catch(e) {
-      const alert = this.alertController.create({
-        title:'Fatal Error',
-        message:'Could not establish connection to the server. Please restart your application!',
-        buttons:['OK']
-      })
-
-      alert.present();
-    } finally {
-      this.loading = false;
-    }
-
+  private async loadData() {
     try {
       [this.friends,this.notifications,this.pendingRequests] = await Promise.all([
         this.friendsService.getFriends(),
         this.notificationsService.getNotifications(),
-        this.friendsService.getPendingRequets()
+        this.friendsService.getPendingRequets(),
+        this.settingsService.fetchSettings()
       ]);
 
       await this.messagesService.getInitialMessages();
       this.unreadMessages = this.messagesService.getUnreadMessages();
-    } catch(err) {
-      this.errorResolverService.presentAlertError('Error',err.statusCode);
-    } finally {
-      this.loading = false;
+    } catch(e) {
+      throw e;
     }
+  }
+
+  private async ionViewWillEnter() {
+    this.subscribeEvents();
+
+    if ( this.networkService.hasInternetConnection() ) {
+      let loading;
+
+      try {
+        if ( this.settingsService.shouldDisplayMainLoadingScreen() ) {
+          this.settingsService.toggleMainLoadingScreen();
+
+          loading = this.loadingController.create({
+            spinner:'bubbles',
+            content:'Loading Data...'
+          });
+          
+          await loading.present();
+        }
+
+        await this.loadData();
+        await this.socketService.getConnection();
+        await this.socketService.executeTempOperations();
+      } catch(err) {
+        this.errorResolverService.presentAlertError('Error',err.statusCode);
+      } finally {
+        if ( loading ) { loading.dismiss(); }
+      }
+    }
+  }
+
+  private async ionViewWillLeave() {
+    this.unSubscribeEvents();
   }
 
   private startChatting(userOptions):void {
     this.events.publish('start:chatting',userOptions);
   }
 
-  ionViewWillLeave() {
-    this.events.unsubscribe('friend:login');
-    this.events.unsubscribe('friend:logout');
-    this.events.unsubscribe('friends:user-confirmed');
-    this.events.unsubscribe('friend:friend-you-removed');
-    this.events.unsubscribe('message:stored-unread-message');
-  }
-
   private async cancelRequest(idUser:number) {
     try {
       await this.friendsService.cancelRequest(idUser);
 
+      this.friendsService.removePendingRequest({ id_user:idUser });
       this.pendingRequests = await this.friendsService.getPendingRequets();
     } catch(e) {
       this.errorResolverService.presentAlertError('Error',e.errorCode);
@@ -181,11 +301,11 @@ export class ChatMain {
     this
       .apiService
       .dismissNotification(notificationID)
-      .subscribe((res) => {
-        if ( res.success !== true ) {
-          this.errorResolverService.presentAlertError('Error',res.errorCode);
-        } else {
+      .subscribe((response) => {
+        if ( response.success ) {
           this.notifications = this.notificationsService.dismissNotification(notificationID);
+        } else {
+          this.errorResolverService.presentAlertError('Error',response.errorCode);
         }
       },(err) => {
         this.errorResolverService.presentAlertError('Error',err.errorCode);
@@ -196,7 +316,7 @@ export class ChatMain {
     this
       .apiService
         .dismissAllNotifications()
-        .subscribe((res) => {
+        .subscribe(() => {
           this.notifications = [];
           this.notificationsService.dismissAll();
         },(err) => {
@@ -204,26 +324,29 @@ export class ChatMain {
         });
   }
 
-  private confirmFriendRequest(id_user:string,notificationID:string):void {
+  private async confirmFriendRequest(id_user:string,notificationID:string) {
+    const loading = this.loadingController.create({
+      spinner:'bubbles',
+      content:'Confirming friend request...'
+    });
+
+    await loading.present();
+
     this
       .apiService
       .confirmFriendRequest(id_user)
-      .subscribe((res) => {
-        if ( res.success === true ) {
-          const alert = this.alertController.create({
-            title:'Success',
-            subTitle:'Successfully confirmed!',
-            buttons:['dismiss']
-          });
+      .subscribe((response) => {
+        loading.dismiss();
 
-          alert.present();
-
+        if ( response.success ) {
           this.notifications = this.notificationsService.dismissNotification(notificationID);
           this.dismissNotification(notificationID);
         } else {
-          this.errorResolverService.presentAlertError('Error',res.errorCode);
+          this.errorResolverService.presentAlertError('Error',response.errorCode);
         }
       },(err) => {
+        loading.dismiss();
+
         this.errorResolverService.presentAlertError('Error',err.errorCode);
       });
   }

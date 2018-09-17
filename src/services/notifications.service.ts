@@ -22,11 +22,13 @@ export class NotificationsService {
   }
 
   public dismissNotification(notificationID:string) {
-    const index = this.notifications.findIndex(
+    const notificationIndex = this.notifications.findIndex(
       ({ id_notification }) => id_notification === notificationID
     );
 
-    this.notifications.splice(index,1);
+    if ( notificationIndex !== -1 ) {
+      this.notifications.splice(notificationIndex,1);
+    }
 
     return this.notifications;
   }
@@ -41,16 +43,14 @@ export class NotificationsService {
         return resolve(this.notifications);
       }
 
-      this.apiService
-        .getNotifications()
-        .subscribe((res) => {
-          this.notifications = res;
-          this.areNotificationsLoaded = true;
-          
-          resolve(this.notifications);
-        },(err) => {
-          reject(err);
-        });
+      this.apiService.getNotifications() .subscribe((res) => {
+        this.notifications = res;
+        this.areNotificationsLoaded = true;
+        
+        resolve(this.notifications);
+      },(err) => {
+        reject(err);
+      });
     });
   }
 }

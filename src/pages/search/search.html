@@ -24,7 +24,7 @@
   <ion-list *ngIf="users && users.length > 0">
     <ion-item *ngFor="let u of users">
      {{ u.username }}
-     <button ion-button (click)="addFriend(u.id_user)">Add Friend</button>
+     <button ion-button (click)="addFriend(u.id_user,u.username)">Add Friend</button>
     </ion-item>
   </ion-list>
   <button ion-button block (click)="search()">Search</button>

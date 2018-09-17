@@ -1,10 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Http , Headers } from '@angular/http';
-import { Storage } from '@ionic/storage';
 import { Observable } from 'rxjs/Rx';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
 import { Config } from '../Libs/Config';
+import { SecureDataStorage } from '../Libs/SecureDataStorage';
 
 @Injectable()
 export class APIService {
@@ -30,10 +30,12 @@ export class APIService {
   private deleteAccountURL:string = this.mainURL + 'api/users/delete_account';
   private grantAccessTokenURL:string = this.mainURL + 'api/login/grant_access_token';
   private changePinURL:string = this.mainURL + 'api/users/change_pin';
+  private getSocketOperationsURL:string = this.mainURL + 'api/users/get_socket_operations';
+  private deleteOperationsURL:string = this.mainURL + 'api/users/delete_operations';
+  private changeLoginStatusURL:string = this.mainURL + 'api/login/change_login_status';
 
   constructor(
     private http:Http,
-    private storage:Storage
   ) { }
 
   public setToken(token:string):void {
@@ -55,6 +57,36 @@ export class APIService {
     return response.json();
   }
 
+  public async changeLoginStatus(body) {
+    try {
+      const response = await this.http.post(this.changeLoginStatusURL,body,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
+  public async getSocketOperations() {
+    try {
+      const response = await this.http.get(this.getSocketOperationsURL,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
+  public async deleteOperations(body) {
+    try {
+      const response = await this.http.post(this.deleteOperationsURL,body,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
   public async changePin(body) {
     try {
       const response = await this.http.post(this.changePinURL,body,{ headers:this._headers() }).toPromise();
@@ -65,7 +97,7 @@ export class APIService {
     }
   }
 
-  public isLoggedIn() {
+  public isLoggedIn():any {
     return new Promise(async (resolve,reject) => {
       const token = await this.getToken();
 
@@ -80,9 +112,7 @@ export class APIService {
         .get(this.isLoggedInURL , { headers:this._headers() })
         .map((res) => res.json())
         .subscribe((res) => {
-          if ( res.isLoggedIn ) {
-            return resolve(true);
-          }
+          resolve(res);
 
           reject(false);
         },() => {
@@ -103,8 +133,14 @@ export class APIService {
     return user.json();
   }
 
-  public channgePassword(options) {
-    return this.http.post(this.changePasswordURL,options,{ headers:this._headers() }).toPromise();
+  public async channgePassword(options) {
+    try {
+      const response = await this.http.post(this.changePasswordURL,options,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
   }
 
   public getNotifications() {
@@ -196,7 +232,7 @@ export class APIService {
 
   public async getToken() {
     try {
-      const token = await this.storage.get('token');
+      const token = await SecureDataStorage.Instance().get('token');
 
       return token;
     } catch(e) {

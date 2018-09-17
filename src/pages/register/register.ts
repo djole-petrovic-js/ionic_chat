@@ -1,16 +1,17 @@
 import { Component } from '@angular/core';
-import { NavController, NavParams, LoadingController,AlertController, Alert } from 'ionic-angular';
+import { NavController, LoadingController,AlertController } from 'ionic-angular';
 
 import { AuthenticationService } from '../../services/authentication.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
 import { Form } from '../../Libs/Form';
 import { LogIn } from '../login/login';
 import { Config } from '../../Libs/Config';
+import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 
 @Component({
   selector: 'page-register',
   templateUrl: 'register.html',
-  providers:[AuthenticationService,ErrorResolverService]
+  providers:[ErrorResolverService]
 })
 export class Register {
   private user = {
@@ -25,16 +26,36 @@ export class Register {
 
   constructor(
     private navCtrl: NavController,
-    private navParams: NavParams,
     private authenticationService:AuthenticationService,
     private errorResolverService:ErrorResolverService,
     private loadingController:LoadingController,
     private alertController:AlertController
-  ) {}
+  ) { }
 
+  private async ionViewWillEnter() {
+    if ( Config.getConfig('IS_PRODUCTION') ) {
+      // check if some device info params are null, if they are
+      // user will not be able to sign up from this mobile device
+      if ( !Config.checkIfDeviceInfoAvailable()  ) {
+        this.alertController.create({
+          title:'Device Error',
+          message:`No access to informations about this device. You can't create an account from this device`,
+          buttons:['OK']
+        }).present();
+      }
+
+      if ( !( await SecureDataStorage.Instance().checkIfSSAvailable() ) ) {
+        this.alertController.create({
+          title:'Security Error.',
+          message:`Please enable screen lock on your device. This application will not work without it.`
+        }).present();
+      }
+    }
+  }
+ 
   private checkIfUsernameEmailExists(username:string,email:string) {
     return new Promise((resolve,reject) => {
-      this.authenticationService.checkEmailUsername({username,email})
+      this.authenticationService.checkEmailUsername({ username,email })
         .subscribe((res) => {
           resolve(res);
         },(err) => {
@@ -45,7 +66,7 @@ export class Register {
 
   private createFormObj():Form {
     const usernameRegex = '^[a-zA-Z0-9\\._]{5,20}$';
-    const passwordRegex = '^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])[0-9a-zA-Z._]{8,25}$';
+    const passwordRegex = '^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])[0-9a-zA-Z._]{8,16}$';
 
     const form = new Form({
       username:`bail|required|minlength:5|maxlength:20|regex:${usernameRegex}`,
@@ -58,14 +79,14 @@ export class Register {
       username:[
         ['required','Username is required'],
         ['minlength','Minimum of 5 characters for username.'],
-        ['maxlength','Maximum of 15 characters for username'],
+        ['maxlength','Maximum of 20 characters for username'],
         ['regex','Only digits, letters, "." and "_" characters are allowed for username.']
       ],
       password:[
         ['required','Password is required'],
         ['minlength','Password needs to have between 8 and 16 characters'],
         ['maxlength','Password is too long'],
-        ['regex','Password must containt one digit, and one uppercase letter. Numbers, letters "\." and "_" are allowed'],
+        ['regex','Password must containt one digit, and one uppercase letter. Numbers, letters "." and "_" are allowed'],
         ['same','Passwords doesn"t match.']
       ],
       confirmPassword:[
@@ -126,14 +147,12 @@ export class Register {
 
     loading.present();
 
-    // attach device info
     this.user.deviceInfo = Config.getDeviceInfo();
 
-    this.authenticationService.register(this.user)
-    .subscribe(response => {
+    this.authenticationService.register(this.user).subscribe((response) => {
       loading.dismiss();
 
-      if ( response.success === true ) {
+      if ( response.success ) {
         this.user = {
           email:'',
           password:'',
@@ -142,13 +161,11 @@ export class Register {
           deviceInfo:{}
         };
 
-        const alert = this.alertController.create({
+        this.alertController.create({
           title:'Registration Sucessfull',
-          subTitle:'Confirm your email and start chatting :)',
-          buttons:['dismiss']
-        });
-
-        alert.present();
+          subTitle:'Confirm your email and and you can log in!',
+          buttons:['OK']
+        }).present();
 
         this.navCtrl.push(LogIn);
       } else {

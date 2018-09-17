@@ -41,7 +41,9 @@ export class ErrorResolverService {
     'USERS_FETCH_INFO_FAILED':'Error while fetching your info. Please restart your application!',
     'USERS_DELETE_ACCOUNT_WRONG_PASSWORD':'Password you provided is not valid, try again!',
     'USERS_DELETE_ACCOUNT_FATAL_ERROR':'Error while deleting your account, please try again!',
+    'USERS_PIN_INVALID':'PIN your provided is invalid.',
     'PIN_UNIQUE_DEVICE_OFF':"Setting 'Use app only on this device' is off. Please turn it on if you want to use PIN login",
+    'UNIQUE_DEVICE_ERROR':'Operation failed. Make sure you are doing this from your registered device!',
     'DEFAULT':'Error occured, please try again.'
   }
 

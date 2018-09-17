@@ -1,18 +1,23 @@
 import { Component } from '@angular/core';
-import { NavController , Events, LoadingController, AlertController } from 'ionic-angular';
-import { Storage } from '@ionic/storage';
-import { Register } from '../register/register';
+import { Events, LoadingController, AlertController } from 'ionic-angular';
+import { Network } from 'ionic-native';
+import { Platform } from 'ionic-angular';
 import { AuthenticationService } from '../../services/authentication.service';
 import { APIService } from '../../services/api.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
 import { TokenService } from '../../services/token.service';
+import { SocketService } from '../../services/socket.service';
+import { SettingsService } from '../../services/settings.service';
 import { Config } from '../../Libs/Config';
 import { Form } from '../../Libs/Form';
+import { SecureDataStorage } from '../../Libs/SecureDataStorage';
+import { PincodeController, PinCode } from 'ionic2-pincode-input';
+import { NetworkService } from '../../services/network.service';
 
 @Component({
   selector: 'page-home',
   templateUrl: 'login.html',
-  providers:[AuthenticationService,ErrorResolverService,TokenService]
+  providers:[ErrorResolverService]
 })
 export class LogIn {
   private user = {
@@ -21,43 +26,82 @@ export class LogIn {
     deviceInfo:{}
   };
 
+  private switchLoginForms:boolean;
   private userInfo;
-  private pin;
+  private pinCodeController:PinCode;
 
   constructor(
-    private navCtrl: NavController,
+    private networkService:NetworkService,
+    private socketService:SocketService,
     private authenticationService:AuthenticationService,
     private apiService:APIService,
     private tokenService:TokenService,
-    private storage:Storage,
+    private settingsService:SettingsService,
     private events:Events,
     private errorResolverService:ErrorResolverService,
     private loadingController:LoadingController,
-    private alertController:AlertController
+    private alertController:AlertController,
+    private platform:Platform,
+    private pincodeCtrl:PincodeController,
   ) { }
 
   async ionViewWillEnter() {
+    await this.platform.ready();
+
+    if ( !this.networkService.hasInternetConnection() ){
+      this.alertController.create({
+        title:'Connection Error',
+        message:'No internet connection.',
+        buttons:['OK']
+      }).present();
+    }
+
     const loading = this.loadingController.create({
       spinner:'bubbles',
-      content:'Loading...'
+      content:'Loading...',
+      dismissOnPageChange: true 
     });
 
     loading.present();
 
-    const isLoggedIn = await this.tokenService.checkStatusOnResume();
+    const isLoggedIn = await this.tokenService.checkLoginStatus();
 
     if ( isLoggedIn ) {
       loading.dismiss();
+
+      this.settingsService.toggleMainLoadingScreen();
+      // get all operations, socket service will execute just the ones
+      // that are new messages, not friend request notifications etc.
+      const [ { operations } ] =  await Promise.all([
+        this.apiService.getSocketOperations(),
+        this.apiService.changeLoginStatus({ status:1 }),
+      ]);
+
+      this.socketService.setTempOperations(operations);
+
+      await this.apiService.deleteOperations({  });
+
       return this.events.publish('user:loggedin');
     }
 
-    this.userInfo = await Config.getInfo();
+    await loading.dismiss();
 
-    loading.dismiss();
+    const userInfo = await Config.getInfo();
+
+    this.userInfo = userInfo.info;
+    this.switchLoginForms = !!userInfo.default;
+
+    if ( this.userInfo.pin_login_enabled ) {
+      await this.showPinForm();
+    }
+  }
+
+  private switchToPINLoginForm() {
+    this.userInfo.pin_login_enabled = 1;
   }
 
   private logIn() {
-    if ( !(this.user.email && this.user.password ) ) {
+    if ( !(this.user.email && this.user.password) ) {
       const alert = this.alertController.create({
         title:'Login',
         subTitle:'Missing Credentials',
@@ -77,7 +121,7 @@ export class LogIn {
 
     loading.present();
 
-    this.authenticationService.logIn(this.user).subscribe(async(response) => {
+    this.authenticationService.logIn(this.user).subscribe((response) => {
       loading.dismiss();
       this._onSuccessfullLogin(response);
     },(err) => {
@@ -87,7 +131,19 @@ export class LogIn {
     });
   }
 
-  private logInWithPin() {
+  private async showPinForm() {
+    this.pinCodeController = await this.pincodeCtrl.create({
+      title:'Enter your PIN',
+      passSize:4,
+      hideForgotPassword:true,
+      pinHandler:this.logInWithPin.bind(this),
+      enableBackdropDismiss:true
+    });
+ 
+    await this.pinCodeController.present();
+  }
+
+  private logInWithPin(pin:string) {
     const form = new Form({
       pin:'bail|required|regex:^[1-9][0-9]{3}$'
     });
@@ -99,19 +155,20 @@ export class LogIn {
       ]
     });
 
-    form.bindValues({ pin:this.pin });
+    form.bindValues({ pin });
     form.validate();
     
     if ( !form.isValid() ) {
       const alert = this.alertController.create({
         title:'PIN',
-        message:form.errorMessages()[0]
+        message:form.errorMessages()[0],
+        buttons:['OK']
       });
 
       return alert.present();
     }
 
-    const body = { pin:this.pin,deviceInfo:Config.getDeviceInfo() };
+    const body = { pin,deviceInfo:Config.getDeviceInfo() };
 
     const loading = this.loadingController.create({
       spinner:'bubbles',
@@ -121,31 +178,40 @@ export class LogIn {
     loading.present();
 
     this.authenticationService.logIn(body).subscribe(async(response) => {
+      await this.pinCodeController.dismiss();
+      await this._onSuccessfullLogin(response);
+
       loading.dismiss();
-      this._onSuccessfullLogin(response);
+      this.pinCodeController = null; 
     },(err) => {
       loading.dismiss();
-
       this.errorResolverService.presentAlertError('Login Error',err.errorCode);
     });
   }
 
   private async _onSuccessfullLogin(response) {
-    if ( response.success === true ) {
+    if ( response.success ) {
       this.apiService.setToken(response.token);
-      this.authenticationService.storeToken(response.token);
       
       try {
         await Promise.all([
-          this.storage.set('token',response.token),
-          this.storage.set('refreshToken',response.refreshToken)
+          SecureDataStorage.Instance().set('token',response.token),
+          SecureDataStorage.Instance().set('refreshToken',response.refreshToken)
         ]);
 
+        const { operations } = await this.apiService.getSocketOperations();
+
+        this.socketService.setTempOperations(operations);
+
+        await this.apiService.deleteOperations({  });
+        
+        this.settingsService.toggleMainLoadingScreen();
         this.events.publish('user:loggedin');
       } catch(e) {
         this.alertController.create({
           title:'Login Error',
-          message:'Error occured while trying to log you in, please try again.'
+          message:'Error occured while trying to log you in, please try again.',
+          buttons:['OK']
         }).present();
       }
     } else {
@@ -154,7 +220,7 @@ export class LogIn {
   }
 
   private async resendConfirmationEmail() {
-    if ( !(this.user.email && this.user.password ) ) {
+    if ( !(this.user.email && this.user.password) ) {
       const alert = this.alertController.create({
         title:'Resending Email',
         subTitle:'Missing Credentials',
@@ -177,7 +243,7 @@ export class LogIn {
     }).subscribe((response) => {
       loading.dismiss();
 
-      if ( response.success === true ) {
+      if ( response.success ) {
         const alert = this.alertController.create({
           title:'Resending Email',
           subTitle:'Successfully sent. You can now activate your account.',
@@ -200,9 +266,5 @@ export class LogIn {
       loading.dismiss();
       this.errorResolverService.presentAlertError('Resending Email Error',err.errorCode);
     });
-  }
-
-  private signUp():void {
-    this.navCtrl.push(Register);
   }
 }

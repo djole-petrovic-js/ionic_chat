@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { AlertController, LoadingController } from 'ionic-angular';
 import { APIService } from '../../services/api.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
+import { FriendsService } from '../../services/friends.service';
 
 @Component({
   selector: 'page-search',
@@ -14,12 +15,13 @@ export class Search {
 
   constructor(
     private apiService:APIService,
+    private friendsService:FriendsService,
     private errorResolverService:ErrorResolverService,
     private alertController:AlertController,
     private loading:LoadingController
   ) { }
 
-  private addFriend(id_user:string):void {
+  private addFriend(id_user:string,username:string):void {
     this
       .apiService
       .addFriend(id_user)
@@ -28,18 +30,22 @@ export class Search {
           return this.errorResolverService.presentAlertError('Error',res.errorCode);
         }
 
-        const alert = this.alertController.create({
+        this.alertController.create({
           title:'Success',
           subTitle:`
             Successfully added to your friend list! 
             You can start chatting as soon as the person confirm your request.
           `,
           buttons:['OK']
-        });
+        }).present();
 
-        alert.present();
+        this.friendsService.addToPendingRequest({ id_user,username });
 
-        this.users.splice(this.users.findIndex(x => x.id_user === id_user), 1);
+        const userIndex = this.users.findIndex(x => x.id_user === id_user);
+
+        if ( userIndex !== -1 ) {
+          this.users.splice(userIndex, 1);
+        }
       },(err) => {
         this.errorResolverService.presentAlertError('Error',err.errorCode);
       });

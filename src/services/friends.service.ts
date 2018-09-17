@@ -4,7 +4,7 @@ import { Events } from 'ionic-angular';
 
 @Injectable()
 export class FriendsService {
-  private pendingRequests = [];
+  private pendingRequests;
   private friends = [];
   private friendsLoaded:boolean = false;
 
@@ -12,15 +12,63 @@ export class FriendsService {
     private apiService:APIService,
     private events:Events
   ) {
+    this.events.subscribe('user:logout',() => {
+      this.pendingRequests = null;
+      this.friends = [];
+      this.friendsLoaded = false;
+    });
     // comes from socket io
     // removes friend that is deleting you from your users list.
-    this.events.subscribe('friend:friend-you-removed',() => this.friendsLoaded = false);
+    this.events.subscribe('friend_you_removed',(data) => {
+      const friendIndex = this.friends.findIndex(x => x.id_user === data.IdUserRemoving);
+
+      if ( friendIndex !== -1 ) {
+        this.friends.splice(friendIndex,1);
+      }
+    });
     // works localy, delete a friend from your users list
-    this.events.subscribe('friends:friends-removed',() => this.friendsLoaded = false);
+    this.events.subscribe('friends:friends-removed',(data) => {
+      const friendIndex = this.friends.findIndex(x => x.id_user === data.IdFriendToRemove);
+
+      if ( friendIndex !== -1 ) {
+        this.friends.splice(friendIndex,1);
+      }
+    });
   }
 
   public async getPendingRequets() {
-    return await this.apiService.getPendingRequests();
+    try {
+      if ( this.pendingRequests ) {
+        return this.pendingRequests;
+      }
+      this.pendingRequests = await this.apiService.getPendingRequests();
+
+      return this.pendingRequests;
+    } catch(e) {
+      throw e;
+    }
+  }
+
+  public areFriendsLoaded():boolean {
+    return this.friendsLoaded;
+  }
+
+  public addToPendingRequest(friend) {
+    this.pendingRequests.push(friend);
+  }
+
+  public removePendingRequest(friend) {
+    this.pendingRequests.splice(
+      this.pendingRequests.findIndex(x => x.id_user === friend.id_user),1
+    );
+  }
+
+  public removeFriend(id_user) {
+    const friendIndex = this.friends.findIndex(x => x.id_user === id_user);
+
+    if ( friendIndex !== -1 ) {
+      this.friends.splice(friendIndex,1);
+    }
   }
 
   public forceNewLoad():void {
@@ -47,13 +95,6 @@ export class FriendsService {
             return reject(response);
           }
 
-          const friendIndex = this.friends.findIndex(x => x.id_user === IdFriendToRemove);
-
-          if ( friendIndex !== -1 ) {
-            this.friends.splice(friendIndex,1);
-          }
-          
-          this.friendsLoaded = false;
           resolve(response);
         },(err) => {
           reject(err);
@@ -67,12 +108,11 @@ export class FriendsService {
 
   public getFriends() {
     return new Promise((resolve,reject) => {
-      if ( this.friendsLoaded === true ) {
+      if ( this.friendsLoaded ) {
         return resolve(this.friends);
       }
 
-      this.apiService.getAllFriends()
-        .subscribe((res) => {
+      this.apiService.getAllFriends().subscribe((res) => {
           this.friendsLoaded = true;
           this.friends = res;
 

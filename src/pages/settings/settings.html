@@ -38,8 +38,8 @@
       <ion-item>
         <ion-label>Allow offline Messages
 
-          <button (click)="displayOfflineMessages()">
-              <ion-icon name="information-circle"></ion-icon>
+          <button (click)="displayOfflineMessagesInfo()">
+            <ion-icon name="information-circle"></ion-icon>
           </button>
         </ion-label>
         
@@ -47,11 +47,15 @@
           (ionChange)="toggleOfflineMessages()"
           [(ngModel)]="isToggled"
           [checked]="user && user.allow_offline_messages">
-
         </ion-toggle>
       </ion-item>
       <ion-item>
-        <ion-label>Use app only on this device</ion-label>
+        <ion-label>Use app only on this device
+
+        <button (click)="displayUniqueDeviceInfo()">
+          <ion-icon name="information-circle"></ion-icon>
+        </button>
+        </ion-label>
 
         <ion-toggle
           (ionChange)="toggleUniqueDevice()"
@@ -75,49 +79,38 @@
     </ion-list>
 
     <h1>Account settings</h1>
-    
-    <ion-list>
-      <ion-title>Change your password</ion-title>
-      <br/>
-
-      <ion-list class="login">
+      <ion-list>
         <ion-item>
-          <ion-label>Current Password</ion-label>
-          <ion-input [(ngModel)]="password.currentPassword" type="password"></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label>New Password</ion-label>
-          <ion-input [(ngModel)]="password.newPassword" type="password"></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label>Confirm New Password</ion-label>
-          <ion-input [(ngModel)]="password.confirmNewPassword" type="password"></ion-input>
-        </ion-item>
-
-        <ion-list *ngIf="passwordErrors && passwordErrors.length > 0">
-          <ion-item text-wrap *ngFor="let error of passwordErrors" class="errormsg">
-            {{ error }}
-          </ion-item>
-        </ion-list>
-        
-        </ion-list>
-
-        <ion-item>
-          <button ion-button full (click)="confirmChangePassword()" >Change!</button>
+          <button
+            style="text-transform: none;"
+            ion-button full (click)="confirmChangePassword()"
+          >Change Your Password</button>
         </ion-item>
       </ion-list>
 
-      <ion-title>Delete my account</ion-title>
-      <br/>
-
+      <ion-list *ngIf="user && user.pin_login_enabled">
+        <div>
+          <ion-item>
+            <button
+              style="text-transform: none;"
+              color="primary"
+              ion-button full
+              (click)="confirmPinChange()"
+            >Change Your PIN
+          </button>
+          </ion-item>
+        </div>
+      </ion-list>
+      
       <ion-list>
         <ion-item>
-          <ion-label>Current Password</ion-label>
-          <ion-input [(ngModel)]="deletePassword" type="password"></ion-input>
-        </ion-item>
-
-        <ion-item>
-          <button color="danger" ion-button full (click)="confirmDeleteAccount()" >Delete!</button>
+          <button
+            style="text-transform: none;"
+            color="danger"
+            ion-button full
+            (click)="confirmDeleteAccount()"
+            >Delete Account!
+          </button>
         </ion-item>
       </ion-list>
 

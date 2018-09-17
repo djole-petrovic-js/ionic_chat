@@ -1,57 +1,70 @@
 import { Injectable } from '@angular/core';
 import { Events } from 'ionic-angular';
-import { Storage } from '@ionic/storage';
 import { APIService } from './api.service';
-import { AuthenticationService } from './authentication.service';
 import { Config } from '../Libs/Config';
+import { SecureDataStorage } from '../Libs/SecureDataStorage';
+import { SocketService } from './socket.service';
 
-// token lasts for 25 minutes, refresh at every 14 minutes
+// token lasts for 25 minutes, refresh at every 10 minutes
 @Injectable()
 export class TokenService {
   private _interval;
-  private _intervalSeconds:number = 1000 * 60 * 14;
+  private _intervalSeconds:number = 1000 * 60 * 10;
   private _refreshingStarted:boolean = false;
 
   constructor(
+    private socketService:SocketService,
     private apiService:APIService,
-    private authenticationService:AuthenticationService,
-    private storage:Storage,
     private events:Events
   ) {
-    this.events.subscribe('user:logout',() => {
-      this.stopRefreshing();
-    });
+    this.events.subscribe('user:logout',() => this.stopRefreshing());
   }
 
   // if not logged in, just send refresh token!
-  public async checkStatusOnResume() {
+  public async checkLoginStatus() {
     let loggedIn = true;
+    let minutesExpired;
 
     try {
-      const isLoggedIn = await this.apiService.isLoggedIn();
+      const response = await this.apiService.isLoggedIn();
 
-      if ( !isLoggedIn ) {
+      minutesExpired = response.minutesExpired;
+
+      if ( !response.isLoggedIn ) {
         loggedIn = false;
       }
     } catch(e) {
       loggedIn = false;
     }
 
-    if ( loggedIn ) true;
+    if ( loggedIn ) {
+      if ( minutesExpired >= 14 ) {
+        await this._getAndStoreToken();
 
-    // send refresh token
+        this.stopRefreshing();
+        this.startRefreshing();
+      }
+
+      return true;
+    }
+
     try {
-      const refreshToken = await this.storage.get('refreshToken');
-      const deviceInfo = Config.getDeviceInfo();
+      const refreshToken = await SecureDataStorage.Instance().get('refreshToken');
 
-      const response = await this.apiService.grantAccessToken({
-        refreshToken, deviceInfo
+      if ( !refreshToken ) return false;
+
+      const { token,refreshToken:newRefreshToken } = await this.apiService.grantAccessToken({
+        refreshToken, deviceInfo:Config.getDeviceInfo()
       });
 
-      this.apiService.setToken(response.token);
-      this.authenticationService.storeToken(response.token);
+      if ( newRefreshToken ) { 
+        await SecureDataStorage.Instance().set('refreshToken',newRefreshToken);
+      }
+
+      this.apiService.setToken(token);
+      this.socketService.setNewToken(token);
       
-      await this.storage.set('token',response.token);
+      await SecureDataStorage.Instance().set('token',token);
     } catch(e) {
       return false;
     }
@@ -71,26 +84,27 @@ export class TokenService {
   }
 
   private _clearInterval():void {
-    if ( this._interval ) {
-      window.clearInterval(this._interval);
-    }
+    try { window.clearInterval(this._interval); } catch(e) { }
   }
 
   private async _getAndStoreToken() {
     const response = await this.apiService.refreshToken();
 
     this.apiService.setToken(response.token);
-    this.authenticationService.storeToken(response.token);
+    this.socketService.setNewToken(response.token);
 
-    await this.storage.set('token',response.token);
+    await SecureDataStorage.Instance().set('token',response.token);
   }
 
   private async _start() {
     try {
       await this._getAndStoreToken();
     } catch(e) {
-      this.authenticationService.logOut();
-      this.events.publish('user:logout');
+      try {
+        await this.checkLoginStatus();
+      } catch(e) {
+        throw e;
+      }
     }
   }
 

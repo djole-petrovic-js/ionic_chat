@@ -22,29 +22,22 @@
       <button (click)="logIn()" ion-button color="primary" block>Log in</button>
     </ion-item>
     <br>
-    <ion-item text-wrap>
-      <p>Account not activated? Resend confirmation email bellow!</p>
-      <button (click)="resendConfirmationEmail()" ion-button color="primary" block>Resend!</button>
+    <ion-item text-wrap *ngIf="switchLoginForms">
+      <button (click)="switchToPINLoginForm()" ion-button color="primary" block>
+        Using PIN to login?
+      </button>
     </ion-item>
   </ion-list>
 
   <!-- login with pin -->
   <ion-list class="login" *ngIf="userInfo && userInfo.pin_login_enabled">
     <ion-item>
-      <ion-label>PIN : </ion-label>
-      <ion-input [(ngModel)]="pin" type="password"></ion-input>
-    </ion-item>
-    <ion-item>
-      <button (click)="logInWithPin()" ion-button color="primary" block>Log in</button>
+      <button (click)="showPinForm()" ion-button color="primary" block>Tap to log in</button>
     </ion-item>
   </ion-list>
 
-  <ion-list *ngIf="userInfo">
-    <ion-item>
-      <p>Dont have an account? Sign up bellow!</p>
-      <button (click)="signUp()" ion-button color="primary" block>Sign Up</button>
-    </ion-item>
-  </ion-list>
-
-  
+  <ion-item text-wrap *ngIf="switchLoginForms">
+    <p>Account not activated? Resend confirmation email bellow!</p>
+    <button (click)="resendConfirmationEmail()" ion-button color="primary" block>Resend!</button>
+  </ion-item>
 </ion-content>

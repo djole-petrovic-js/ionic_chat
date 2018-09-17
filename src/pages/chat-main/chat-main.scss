@@ -1,12 +1,4 @@
 page-chat-main {
-  ion-spinner * {
-    width: 30px;
-    height: 30px;
-    stroke: #444;
-    fill: #222;
-    text-align: center;
-  }
-
   .btn-friend {
     height: 70px !important;
   }
@@ -22,10 +14,12 @@ page-chat-main {
   .border-red {
     height: 60px !important;
     border:2px solid red;
+    font-size: 100% !important;
   }
 
   .border-green {
     height: 60px !important;
     border: 2px solid #43ee43;
+    font-size: 100% !important;
   }
 }

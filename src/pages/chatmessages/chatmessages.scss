@@ -12,30 +12,32 @@ page-chatmessages {
 
   //delete buttons
   .left {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     float:left;
     width:8%;
-    height: 10%;
+    height: 5%;
     background:white;
-    text-align:center;
-    color:blue;
-    border:2px solid blue;
-    border-radius: 15%;
+    color:#387ef5;
+    border:2px solid #387ef5;
   }
 
   //delete buttons
   .right {
+    display: flex;
+    justify-content: center;
+    align-items: center;
     float:right;
     width:8%;
-    height: 10%;
-    background:blue;
-    text-align:center;
+    height: 5%;
+    background:#387ef5;
     color:white;
-    border-radius: 15%;
-    border:2px solid blue; 
+    border:2px solid #387ef5; 
   }
 
   .item-inner {
-    border-radius: 4%;
+    // border-radius: 4%;
     width:75%;
     font-size: 110%;
     padding: 0.5% 5% 0.5% 5%;
@@ -45,7 +47,7 @@ page-chatmessages {
   }
 
   ion-item.red > .item-inner{
-    background: blue;
+    background: #387ef5;
     color:white;
     margin-bottom:5%;
     float:left;
@@ -53,10 +55,10 @@ page-chatmessages {
 
   ion-item.blue > .item-inner {
     background: white;
-    color:blue;
+    color:#387ef5;
     margin-bottom:5%;
     float:right;
-    border:2px solid blue;
+    border:2px solid #387ef5;
     // text-align: right;
   }
 }

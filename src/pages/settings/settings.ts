@@ -7,24 +7,18 @@ import { Form } from '../../Libs/Form';
 import { Config } from '../../Libs/Config';
 import { APIService } from '../../services/api.service';
 import { AuthenticationService } from '../../services/authentication.service';
+import { SettingsService } from '../../services/settings.service';
+import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 
 @Component({
   selector: 'page-settings',
   templateUrl: 'settings.html',
-  providers:[FriendsService,ErrorResolverService]
+  providers:[ErrorResolverService]
 })
 export class Settings {
   private friends;
 
-  private password = {
-    currentPassword:'',
-    newPassword:'',
-    confirmNewPassword:''
-  }
-
-  private deletePassword:string = '';
-
-  // ion change unnecessarily triggers change event
+  // ion toggle change unnecessarily triggers change event
   // checks if first time called, if so just return
   private calledTogglingMethods = {
     toggleOfflineMessages:0,
@@ -36,7 +30,6 @@ export class Settings {
   private isToggled = false;
   private isUniqueDeviceToggled = false;
   private isPinAuthToggled = false;
-  private passwordErrors = [];
 
   constructor(
     private friendsService:FriendsService,
@@ -45,14 +38,15 @@ export class Settings {
     private alertController:AlertController,
     private events:Events,
     private apiService:APIService,
-    private authenticationService:AuthenticationService
+    private authenticationService:AuthenticationService,
+    private settingsService:SettingsService
   ) { }
 
   async ionViewWillEnter() {
     try {
       [this.friends,this.user] = await Promise.all([
         this.friendsService.getFriends(),
-        this.apiService.fetchUserInfo()
+        this.settingsService.fetchSettings()
       ]);
 
       this.isToggled = this.user.allow_offline_messages;
@@ -61,13 +55,11 @@ export class Settings {
 
       await Config.storeInfo({
         pin_login_enabled:this.user.pin_login_enabled
-      })
+      });
 
       // if it is false, it wont trigger ionchange
       // so call methods right away!
-      if ( !this.user.allow_offline_messages ) {
-        this.calledTogglingMethods.toggleOfflineMessages = 1;
-      }
+      if ( !this.user.allow_offline_messages ) this.calledTogglingMethods.toggleOfflineMessages = 1;
 
       if ( !this.user.unique_device ) {
         this.calledTogglingMethods.toggleUniqueDevice = 1;
@@ -112,6 +104,7 @@ export class Settings {
       alert.present();
 
       await Config.updateInfo('pin_login_enabled',togglePinAuthValue);
+      this.settingsService.setSetting('pin_login_enabled',togglePinAuthValue);
     } catch(e) {
       this.isPinAuthToggled = !this.isPinAuthToggled;
       this.calledTogglingMethods.togglePinAuth = 0;
@@ -122,7 +115,7 @@ export class Settings {
       if ( e.errorCode === 'PIN_SETTING_FIRST_TIME' ) {
         const alert = this.alertController.create({
           title:'Set Pin',
-          message:'Enter a 4 digit PIN eg 1234',
+          message:'Enter a 4 digit PIN eg 1234. Leading zero is not allowed.',
           inputs:[{
             name:'pin',
             placeholder:'PIN',
@@ -134,7 +127,7 @@ export class Settings {
           }],
           buttons:[{
             text:'Set',
-            handler:({ pin,pinConfirmed }) => {
+            handler:({ pin,pinConfirmed }):any => {
               const form = new Form({
                 pin:'bail|required|regex:^[1-9][0-9]{3}$|same:pinConfirmed',
                 pinConfirmed:'bail|required'
@@ -178,7 +171,7 @@ export class Settings {
     }
   }
 
-  private async changePin(pin:string,oldPin?:string) {
+  private async changePin(pin:string,pinConfirmed?:string,oldPin?:string) {
     const loading = this.loadingController.create({
       spinner:'bubbles',
       content:'Setting PIN...'
@@ -187,15 +180,26 @@ export class Settings {
     loading.present();
 
     try {
-      await this.apiService.changePin({ pin,oldPin });
-
-      const alert = this.alertController.create({
-        title:'PIN',
-        message:'PIN has been successfully set. You can now turn on PIN login.',
-        buttons:['OK']
+      const response = await this.apiService.changePin({
+        pin,pinConfirmed,oldPin,
+        deviceInfo:Config.getDeviceInfo()
       });
 
-      alert.present();
+      let message = 'PIN has been successfully set. ';
+
+      if ( !this.user.pin_login_enabled ) {
+        message += 'You can now turn on PIN login.';
+      }
+
+      if ( response.success ) {
+        this.alertController.create({
+          title:'PIN',
+          message,
+          buttons:['OK']
+        }).present();
+      } else {
+        this.errorResolverService.presentAlertError('Error',response.errorCode);
+      }
     } catch(e) {
       this.errorResolverService.presentAlertError('Error',e.errorCode);
     } finally {
@@ -230,13 +234,16 @@ export class Settings {
         value:allowOfflineMessagesValue
       });
 
-      const alert = this.alertController.create({
+      this.alertController.create({
         title:'Success',
         message:'Successfully changed allow offline messages mode!',
         buttons:['OK']
-      });
+      }).present();
 
-      alert.present();
+      this.settingsService.setSetting(
+        'allow_offline_messages',
+        allowOfflineMessagesValue
+      );
     } catch(e) {
       this.errorResolverService.presentAlertError('Error',e.errorCode);
     } finally {
@@ -264,15 +271,22 @@ export class Settings {
 
       if ( uniqueDeviceValue === 0 ) {
         await Config.updateInfo('pin_login_enabled',0);
+
+        this.settingsService.setSetting('pin_login_enabled',0);
+        this.calledTogglingMethods.togglePinAuth = 0;
+        this.user.isPinAuthToggled = false;
       }
       
-      const alert = this.alertController.create({
+      this.alertController.create({
         title:'Success',
         message:'Successfully changed which devices can access your account!',
         buttons:['OK']
-      });
+      }).present();
 
-      alert.present();
+      this.settingsService.setSetting(
+        'unique_device',
+        uniqueDeviceValue
+      );
     } catch(e) {
       this.errorResolverService.presentAlertError('Error',e.errorCode);
     } finally {
@@ -311,23 +325,33 @@ export class Settings {
     }
   }
 
-  private displayOfflineMessages() {
+  private displayOfflineMessagesInfo() {
     this.alertController.create({
       title:'Offline Messages',
       message:`
-        If you turn off this setting, we won"t store any messages while you are offline.
+        If you turn off this setting, we won't store any messages while you are offline.
         You will recieve messages only when online.
       `,
       buttons:['OK']
     }).present();
   }
 
+  private displayUniqueDeviceInfo() {
+    this.alertController.create({
+      title:'Unique Device',
+      message:`Device you used to create your account will be used as a unique device, allowing you to keep your
+       account much more secure. You will be able to log in only from this device. If you want to log in from another
+       device, you can turn this setting off.`,
+       buttons:['OK']
+    }).present();
+  }
+
   private buildFormObject():Form {
-    const passwordRegex = '^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])[0-9a-zA-Z._]{8,25}$';
+    const passwordRegex = '^(?=.*\\d)(?=.*[a-z])(?=.*[A-Z])[0-9a-zA-Z._]{8,16}$';
 
     const form = new Form({
       currentPassword:'bail|required',
-      newPassword:`bail|required|minlength:8|maxlength:25|regex:${passwordRegex}:g|same:confirmNewPassword`,
+      newPassword:`bail|required|minlength:8|maxlength:16|regex:${passwordRegex}:g|same:confirmNewPassword`,
       confirmNewPassword:'bail|required'
     });
 
@@ -337,7 +361,7 @@ export class Settings {
       ],
       newPassword:[
         ['required','New Password is required'],
-        ['minlength','Password needs to have between 8 and 25 characters'],
+        ['minlength','Password needs to have between 8 and 16 characters'],
         ['maxlength','Password is too long'],
         ['regex','Password must containt one digit, and one uppercase letter. Numbers, letters "." and "_" are allowed'],
         ['same','Passwords doesn"t match.']
@@ -350,27 +374,57 @@ export class Settings {
     return form;
   }
 
-  // user has to confirm he wants to change password
   private async confirmChangePassword() {
-    const form = this.buildFormObject();
-
-    form.bindValues(this.password);
-    form.validate();
-
-    if ( !form.isValid() ) {
-      this.passwordErrors = form.errorMessages();
-
-      return;
-    }
-
-    this.passwordErrors = [];
-
     this.alertController.create({
       title:'Confirm Password Changing.',
       message:'Are you sure you want to change your password?',
       buttons:[{
-        text:'Confirm',
-        handler:this.changePassword.bind(this)
+        text:'Yes',
+        handler:() => {
+          this.alertController.create({
+            title:'Enter new password.',
+            inputs:[
+            { name:'newPassword',placeholder:'Password',type:'password'},
+            { name:'confirmNewPassword',placeholder:'Confirm',type:'password' },
+            { name:'currentPassword',placeholder:'Current password',type:'password' }],
+            buttons:[{
+              text:'Confirm',
+              handler:(data) => {
+                if ( !(data.newPassword && data.confirmNewPassword && data.currentPassword) ) {
+                  this.alertController.create({
+                    title:'Error',
+                    message:'Enter all fields.',
+                    buttons:['OK']
+                  }).present();
+
+                  return false;
+                }
+
+                const form = this.buildFormObject();
+
+                form.bindValues(data);
+                form.validate();
+
+                if ( !form.isValid() ) {
+                  this.alertController.create({
+                    title:'Error',
+                    message:form.errorMessages()[0],
+                    buttons:['OK']
+                  }).present();
+
+                  return false;
+                }
+
+                data.deviceInfo = Config.getDeviceInfo();
+
+                this.changePassword(data);
+              }
+            },{
+              text:'Cancel',
+              role:'cancel'
+            }]
+          }).present();
+        }
       },{
         text:'Cancel',
         role:'cancel'
@@ -378,7 +432,7 @@ export class Settings {
     }).present();
   }
 
-  private async changePassword() {
+  private async changePassword(body) {
     const loading = this.loadingController.create({
       content:'Changing password...',
       spinner:'bubbles'
@@ -387,30 +441,22 @@ export class Settings {
     loading.present();
 
     try {
-      await this.apiService.channgePassword(this.password);
+      await this.apiService.channgePassword(body);
 
-      const alert = this.alertController.create({
+      this.alertController.create({
         title:'Password Changing',
         message:'Your password has been successfully changed!',
         buttons:['OK']
-      })
-
-      alert.present();
-
-      this.password = {
-        currentPassword:'',
-        newPassword:'',
-        confirmNewPassword:''
-      };
+      }).present();
     } catch(e) {
-      this.errorResolverService.presentAlertError('Password Error',e.json().err.errorCode);
+      this.errorResolverService.presentAlertError('Password Error',e.errorCode);
     } finally {
       loading.dismiss();
     }
   }
 
   private async confirmDeleteFriend(IdFriendToRemove) {
-    const alert = this.alertController.create({
+    this.alertController.create({
       title:'Delete friend',
       message:'Are you sure you want to delete this friend?',
       buttons:[{
@@ -418,11 +464,9 @@ export class Settings {
         role:'cancel'
       },{
         text:'Delete',
-        handler:() => this.deleteFriend(IdFriendToRemove)
+        handler:():any => this.deleteFriend(IdFriendToRemove)
       }]
-    });
-
-    alert.present();
+    }).present();
   }
 
   private async deleteFriend(IdFriendToRemove) {
@@ -431,11 +475,13 @@ export class Settings {
       spinner:'bubbles'
     });
 
+    await loading.present();
+
     try {
       await this.friendsService.deleteFriend(IdFriendToRemove);
-      this.friends = await this.friendsService.getFriends();
 
       this.events.publish('friends:friends-removed',{ IdFriendToRemove });
+      this.friends = await this.friendsService.getFriends();
     } catch(e) {
       this.errorResolverService.presentAlertError('Error',e.errorCode);
     } finally {
@@ -444,22 +490,41 @@ export class Settings {
   }
 
   private async confirmDeleteAccount() {
-    if ( !this.deletePassword ) {
-      this.alertController.create({
-        title:'Error',
-        message:'Enter your password!',
-        buttons:['OK']
-      }).present();
-
-      return;
-    }
-
     const confirmAlert = this.alertController.create({
       title:'Delete Account',
       message:'Are you sure you want to delete your account?',
       buttons:[{
         text:'Yes',
-        handler:this.deleteAccount.bind(this)
+        handler:() => {
+          const passwordAlert = this.alertController.create({
+            title:'Password',
+            message:'Enter your password.',
+            inputs:[{
+              placeholder:'Password...',
+              name:'password',
+              type:'password'
+            }],
+            buttons:[{
+              text:'Confirm',
+              handler:(data):any => {
+                if ( !data.password ) {
+                  return this.alertController.create({
+                    title:'Delete Account',
+                    message:'Enter your password.',
+                    buttons:['OK']
+                  }).present();
+                }
+
+                this.deleteAccount(data.password);
+              }
+            },{
+              text:'Cancel',
+              role:'cancel'
+            }]
+          });
+
+          passwordAlert.present();
+        }
       },{
         text:'No',
         role:'cancel'
@@ -469,7 +534,7 @@ export class Settings {
     confirmAlert.present();
   }
 
-  private async deleteAccount() {
+  private async deleteAccount(password) {
     const loading = this.loadingController.create({
       spinner:'bubbles',
       content:'Deleting account...'
@@ -479,7 +544,7 @@ export class Settings {
 
     try {
       const response = await this.apiService.deleteAccount({
-        password:this.deletePassword,
+        password,
         deviceInfo:Config.getDeviceInfo()
       });
 
@@ -488,14 +553,13 @@ export class Settings {
         return;
       }
 
-      const alert = this.alertController.create({
+      this.alertController.create({
         title:'Success',
         message:'Your account is now fully deleted!',
         buttons:['OK']
-      });
-
-      alert.present();
-
+      }).present();
+ 
+      SecureDataStorage.Instance().clear();
       this.authenticationService.logOut();
       this.events.publish('user:logout');
     } catch(e) {
@@ -503,5 +567,70 @@ export class Settings {
     } finally {
       loading.dismiss();
     }
+  }
+
+  private confirmPinChange() {
+    this.alertController.create({
+      title:'PIN Change.',
+      message:'Are you sure you want to change your PIN?',
+      buttons:[{
+        text:'Yes',
+        handler:() => {
+          this.alertController.create({
+            title:'PIN Change.',
+            inputs:[
+              { name:'newPIN',placeholder:'PIN',type:'password' },
+              { name:'confirmNewPIN',placeholder:'Confirm',type:'password' },
+              { name:'currentPIN',placeholder:'Current PIN', type:'password' }
+            ],
+            buttons:[
+              { text:'Confirm',handler:(data) => {
+                if ( !(data.newPIN && data.confirmNewPIN && data.currentPIN) ) {
+                  this.alertController.create({
+                    title:'PIN Error',
+                    message:'Enter all fields.',
+                    buttons:['OK']
+                  }).present();
+            
+                  return false;
+                }
+
+                const pinRegex = /^[1-9][0-9]{3}$/;
+
+                if ( !(
+                  data.newPIN.match(pinRegex) &&
+                  data.confirmNewPIN.match(pinRegex) &&
+                  data.currentPIN.match(pinRegex)
+                ) ) {
+                  this.alertController.create({
+                    title:'PIN Error',
+                    buttons:['OK'],
+                    message:'Enter valid data.'
+                  }).present();
+
+                  return false;
+                }
+
+                if ( data.newPIN !== data.confirmNewPIN ) {
+                  this.alertController.create({
+                    title:'PIN Error',
+                    message:'Confirm your PIN.',
+                    buttons:['OK']
+                  }).present();
+
+                  return false;
+                }
+
+                this.changePin(data.newPIN,data.confirmNewPIN,data.currentPIN);
+              } },
+              { text:'Cancel',role:'cancel' }
+            ]
+          }).present();
+        }
+      },{
+        text:'No',
+        role:'cancel'
+      }]
+    }).present();
   }
 }

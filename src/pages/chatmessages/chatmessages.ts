@@ -75,7 +75,7 @@ export class ChatMessages {
     let contentHeight = dimensions.contentHeight;
     let scrollHeight = dimensions.scrollHeight;
 
-    if ( (scrollTop + contentHeight + 20) > scrollHeight ) {
+    if ( (scrollTop + contentHeight + 20) < scrollHeight ) {
       setTimeout(() => {
         this.content.scrollToBottom();
       },50);

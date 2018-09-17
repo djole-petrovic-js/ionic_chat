@@ -1,10 +1,13 @@
 import { Device } from 'ionic-native';
-import { Storage } from '@ionic/storage';
+import { SecureDataStorage } from '../Libs/SecureDataStorage';
 
 export class Config {
   private static _config = {
-    API_URL:'http://localhost:3000/'
+    API_URL:'http://192.168.0.104:3000/',
+    // API_URL:'http://localhost:3000/',
     // API_URL:'http://104.248.25.211/',
+    ENV:'production',
+    IS_PRODUCTION:false
   }
 
   private static _defaultInfo = {
@@ -12,21 +15,26 @@ export class Config {
   };
 
   public static async updateInfo(key,value) {
-    const storage = new Storage();
-    const data = await storage.get('userInfo');
+    const data = await SecureDataStorage.Instance().get('userInfo');
 
     data[key] = value;
 
-    return await new Storage().set('userInfo',data);
+    return await SecureDataStorage.Instance().set('userInfo',data);
   }
 
   public static async storeInfo(data) {
-    return await new Storage().set('userInfo',data);
+    return await SecureDataStorage.Instance().set('userInfo',data);
   }
 
   public static async getInfo() {
-    const info = await new Storage().get('userInfo');;
-    return info || Config._defaultInfo;
+    const info = await SecureDataStorage.Instance().get('userInfo');
+
+    const output = {
+      info:info || Config._defaultInfo,
+      default:!info
+    };
+
+    return output;
   }
 
   public static getConfig(param:string):any {
@@ -35,6 +43,18 @@ export class Config {
 
   public static getAllConfig() {
     return Config._config;
+  }
+
+  public static checkIfDeviceInfoAvailable():boolean {
+    const deviceInfo = Config.getDeviceInfo();
+
+    return (
+      deviceInfo.uuid && 
+      deviceInfo.serial &&
+      deviceInfo.manufacturer &&
+      deviceInfo.manufacturer !== "unknown" &&
+      deviceInfo.serial !== "unknown"
+    );
   }
 
   public static getDeviceInfo() {

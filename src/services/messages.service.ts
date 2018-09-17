@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
 import { NavController, App } from "ionic-angular/index";
+import { ErrorResolverService } from './errorResolver.service';
 
 @Injectable()
 export class MessagesService {
@@ -18,7 +19,8 @@ export class MessagesService {
   constructor(
     private events:Events,
     private apiService:APIService,
-    private application:App
+    private application:App,
+    private errorResolverService:ErrorResolverService
   ) {
     this.app = application;
     
@@ -28,14 +30,14 @@ export class MessagesService {
     this.events.subscribe('user:logout',this.userLogOut.bind(this));
   }
 
-  private startChatting({ username,id }) {
+  private async startChatting({ username,id }) {
     this.currentUserToChatWith = username;
     this.currentUserID = id;
 
-    this.events.publish('start:chatting-ready');
-    this._deleteInitialMessages(id);
-    
+    await this._deleteInitialMessages(id);
+
     delete this.unreadMessages[username];
+    this.events.publish('start:chatting-ready');
   }
 
   private messageSend(message) {
@@ -57,7 +59,7 @@ export class MessagesService {
     const messageToStore = { user:data.senderUsername , message:data.message };
     // If the page is ChatMessages and current user to chat with is
     // user sending the message, dont store it as unread message
-    this.nav = this.application.getActiveNav();
+    this.nav = this.application.getActiveNavs()[0];
 
     if ( !(
       this.nav.getActive().name === 'ChatMessages' && 
@@ -86,6 +88,7 @@ export class MessagesService {
 
   private async userLogOut() {
     this.allMessages = {};
+    this.unreadMessages = {};
     await this.refreshInitialMessages();
   }
 
@@ -124,7 +127,6 @@ export class MessagesService {
               this._storeInitialMessages(messages);
             }
 
-            // maybe find another way to Deep Clone?
             this.unreadMessages = JSON.parse(JSON.stringify(this.allMessages));
             resolve(this.allMessages);
           },(err) => {
@@ -161,10 +163,13 @@ export class MessagesService {
     if ( this.messagesToDelete.indexOf(userID) !== -1 ) {
       this.apiService.deleteInitialMessages(userID)
         .subscribe(() => {
-          this.messagesToDelete.splice(this.messagesToDelete.indexOf(userID),1);
+          const messageIndex = this.messagesToDelete.indexOf(userID);
+
+          if ( messageIndex !== -1 ) {
+            this.messagesToDelete.splice(messageIndex,1);
+          }
         },(err) => {
-          // ne radi preko error resolvera...
-          console.log(err);
+          this.errorResolverService.presentAlertError('Confirm Friend',err.errorCode);
         });
     }
   }

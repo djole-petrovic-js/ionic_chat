@@ -8,12 +8,6 @@
 </ion-header>
 
 <ion-content padding>
-  <div class="loading" *ngIf="loading">
-    <ion-title>Loading...</ion-title>
-    <br/>
-    <ion-spinner align-center name="bubbles"></ion-spinner>
-  </div>
-  
   <ion-list *ngIf="notifications && notifications.length === 0">
     <ion-item>
       You have no notifications
@@ -22,7 +16,7 @@
 
   <ion-list *ngIf="notifications && notifications.length > 0">
     <button (click)="dismissAllNotifications()" ion-button block>Dismiss all notifications</button>
-    <ion-item *ngFor="let notification of notifications">
+    <ion-item *ngFor="let notification of notifications" text-wrap>
       <ion-label *ngIf="notification.id_notification_type == 1">
         Friend Request from {{ notification.username }}
         <br/>
@@ -67,9 +61,15 @@
   <ion-list *ngIf="friends && friends.length > 0">
     <ion-title>Friends</ion-title>
     <ion-item *ngFor="let friend of friends">
-      <button [class.border-green]="friend.online == 1" [class.border-red]="friend.online == 0" (click)="startChatting({ username:friend.username, id:friend.id_user })" 
-      ion-button block color="primary">
-      {{ unreadMessages[friend.username] ? ['(',unreadMessages[friend.username].length,')'].join("") : '' }}  {{ friend.username }}
+      <button
+        style="text-transform: none;"
+        [class.border-green]="friend.online == 1"
+        [class.border-red]="friend.online == 0"
+        (click)="startChatting({ username:friend.username, id:friend.id_user })" 
+        ion-button block color="primary"
+      >
+      {{ unreadMessages[friend.username] ? ['(',unreadMessages[friend.username].length,')'].join("") : '' }}
+      {{ friend.username }}
       <span [class]="friend.online == 0 ? 'red' : 'green'" >&nbsp;{{ friend.online == 0 ? '(offline)' : '(online)' }}</span>
       </button>
     </ion-item>
