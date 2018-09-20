@@ -34,6 +34,10 @@ export class SocketService {
     });
   }
 
+  public isConnected():boolean {
+    return this.socket.connected
+  }
+
   public async setNewToken(token:string) {
     if ( this.socket ) {
       this.socket.io.opts.query = `auth_token=${token}`;
@@ -110,7 +114,7 @@ export class SocketService {
 
   public getConnection() {
     return new Promise(async(resolve,reject) => {
-      if ( this.socket && this.socket.connected) {
+      if ( this.socket && this.socket.connected ) {
         return resolve(this.socket);
       }
 
@@ -130,7 +134,7 @@ export class SocketService {
       this.socket.on('error', async(err) => {
         if ( err.toLowerCase().includes('token expired') ) {
           const token = await SecureDataStorage.Instance().get('token');
-          
+
           this.socket.disconnect();
           this.socket.io.opts.query = `auth_token=${token}`;
           this.socket.connect();

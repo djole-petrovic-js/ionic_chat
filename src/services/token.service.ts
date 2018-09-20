@@ -21,7 +21,7 @@ export class TokenService {
   }
 
   // if not logged in, just send refresh token!
-  public async checkLoginStatus() {
+  public async checkLoginStatus():Promise<boolean> {
     let loggedIn = true;
     let minutesExpired;
 
@@ -72,7 +72,7 @@ export class TokenService {
     return true;
   }
 
-  public async startRefreshing() {
+  public startRefreshing():void {
     if ( this._refreshingStarted ) return;
 
     this._refreshingStarted = true;

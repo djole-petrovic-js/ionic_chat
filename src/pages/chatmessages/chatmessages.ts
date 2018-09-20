@@ -1,6 +1,8 @@
-import { Component, ViewChild } from '@angular/core';
+import { Component, ViewChild, ElementRef } from '@angular/core';
 import { MessagesService } from '../../services/messages.service';
-import { Events,AlertController,Content, ToastController } from 'ionic-angular';
+import { Events,AlertController,Content, ToastController, Keyboard as IonicKeyboard } from 'ionic-angular';
+import { Keyboard } from '@ionic-native/keyboard';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'page-chatmessages',
@@ -12,10 +14,14 @@ export class ChatMessages {
   private scrollable = '';
   // alert only once that user is not loggedin
   private loggedInNotified:boolean = false;
+  private onKeyboardShowSubscriber:Subscription;
 
-  @ViewChild('content') content:Content;
+  @ViewChild(Content) content: Content;
+  @ViewChild('messageField') messageField:ElementRef;
 
   constructor(
+    private keyboardIonic:IonicKeyboard,
+    private keyboardNative:Keyboard,
     private messagesService:MessagesService,
     private events:Events,
     private alertController:AlertController,
@@ -23,21 +29,26 @@ export class ChatMessages {
   ) { }
 
   ionViewWillEnter() {
+    this.onKeyboardShowSubscriber = this.keyboardNative.onKeyboardShow().subscribe(() => this.scroll());
+
     this.messages = [];
     this.events.subscribe('message:message-recieved',this.messageReceived.bind(this));
     this.events.subscribe('message:not-in-friends-list',this.notInFriendsList.bind(this));
     this.events.subscribe('message:user-not-online',this.userNotOnline.bind(this));
     this.messages = this.messagesService.getMessages();
     
-    setTimeout(() => {
-      this.content.scrollToBottom();
-    },50);
+    this.scroll();
   }
 
   ionViewWillLeave() {
     this.events.unsubscribe('message:message-recieved');
     this.events.unsubscribe('message:user-not-online');
     this.events.unsubscribe('message:not-in-friends-list');
+    this.onKeyboardShowSubscriber.unsubscribe();
+  }
+
+  private scroll() {
+    setTimeout(() => { this.content.scrollToBottom(); },50);
   }
 
   private notInFriendsList() {
@@ -64,21 +75,19 @@ export class ChatMessages {
   }
 
   private messageReceived() {
+    const dimensions = this.content.getContentDimensions();
     // making sure scroll is disabled while pushing new message into the page!
     this.scrollable = 'no-scroll';
     this.messages = this.messagesService.getMessages();
     this.scrollable = '';
-
-    // scroll to bottom when receives message, if already at the bottom!
-    let dimensions = this.content.getContentDimensions();
-    let scrollTop = this.content.scrollTop;
-    let contentHeight = dimensions.contentHeight;
-    let scrollHeight = dimensions.scrollHeight;
-
-    if ( (scrollTop + contentHeight + 20) < scrollHeight ) {
-      setTimeout(() => {
-        this.content.scrollToBottom();
-      },50);
+    // // scroll to bottom when receives message, if already at the bottom!
+    if ( this.keyboardIonic.isOpen() ) {
+      this.scroll();
+      this.messageField.nativeElement.focus();
+    } else {
+      if ( (dimensions.scrollTop + dimensions.contentHeight) >= dimensions.scrollHeight ) {
+        this.scroll();
+      }
     }
   }
 
@@ -92,10 +101,7 @@ export class ChatMessages {
       this.events.publish('message:send',this.message);
       this.messages = this.messagesService.getMessages();
       this.message = '';
-
-      setTimeout(() => {
-        this.content.scrollToBottom();
-      },50);
+      this.scroll();
     }
   }
 }

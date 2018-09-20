@@ -62,12 +62,12 @@ export class LogIn {
       dismissOnPageChange: true 
     });
 
-    loading.present();
+    await loading.present();
 
     const isLoggedIn = await this.tokenService.checkLoginStatus();
 
     if ( isLoggedIn ) {
-      loading.dismiss();
+      await loading.dismiss();
 
       this.settingsService.toggleMainLoadingScreen();
       // get all operations, socket service will execute just the ones
@@ -203,7 +203,10 @@ export class LogIn {
 
         this.socketService.setTempOperations(operations);
 
-        await this.apiService.deleteOperations({  });
+        await Promise.all([
+          this.apiService.deleteOperations({  }),
+          this.apiService.changeLoginStatus({ status:1 }),
+        ]);
         
         this.settingsService.toggleMainLoadingScreen();
         this.events.publish('user:loggedin');

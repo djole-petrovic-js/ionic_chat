@@ -9,6 +9,7 @@ export class SettingsService {
   private settings;
   private shouldDisplay:boolean = false;
   private settingsName:string = 'settings';
+  private shouldLoadFromServer:boolean = true;
 
   constructor(
     private apiService:APIService,
@@ -46,18 +47,21 @@ export class SettingsService {
         return this.settings;
       }
 
-      const settingsFromStorage = await SecureDataStorage.Instance().get(this.settingsName);
+      if ( !this.shouldLoadFromServer ) {
+        const settingsFromStorage = await SecureDataStorage.Instance().get(this.settingsName);
 
-      if ( settingsFromStorage ) {
-        this.settings = settingsFromStorage;
+        if ( settingsFromStorage ) {
+          this.settings = settingsFromStorage;
 
-        return this.settings;
+          return this.settings;
+        }
       }
 
       const settings = await this.apiService.fetchUserInfo();
 
       await SecureDataStorage.Instance().set(this.settingsName,settings);
 
+      this.shouldLoadFromServer = false;
       this.settings = settings;
 
       await Config.storeInfo({ pin_login_enabled:settings.pin_login_enabled });

@@ -1,4 +1,4 @@
-import { NgModule, ErrorHandler, ApplicationRef } from '@angular/core';
+import { NgModule, ErrorHandler } from '@angular/core';
 import { IonicApp, IonicModule, IonicErrorHandler } from 'ionic-angular';
 import { MyApp } from './app.component';
 import { IonicStorageModule } from '@ionic/storage';
@@ -11,6 +11,7 @@ import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
 import { HttpModule } from '@angular/http'
 import { PincodeInputModule } from  'ionic2-pincode-input';
 import { ServiceLocator } from '../Libs/Injector';
+import { Keyboard } from '@ionic-native/keyboard';
 
 import { ChatMain } from '../pages/chat-main/chat-main';
 import { LogIn } from '../pages/login/login';
@@ -68,6 +69,7 @@ import { NetworkService } from '../services/network.service';
     About
   ],
   providers: [
+    Keyboard,
     BackgroundMode,
     SecureStorage,
     Device,
@@ -82,16 +84,13 @@ import { NetworkService } from '../services/network.service';
     MessagesService,
     SettingsService,
     NetworkService,
-    {provide: ErrorHandler, useClass: IonicErrorHandler}
+    { provide: ErrorHandler, useClass: IonicErrorHandler }
   ]
 })
 export class AppModule {
-  constructor(
+  constructor (
     private injector:Injector,
-    private app:ApplicationRef
   ) {
     ServiceLocator.injector = this.injector;
-
-    setInterval(() => { app.tick(); }, 500);
   } 
 }

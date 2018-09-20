@@ -9,7 +9,7 @@
   </ion-navbar>
 </ion-header>
 
-<ion-content padding #content [class]="scrollable">
+<ion-content padding [class]="scrollable">
   <ion-list class="list">
     <div *ngFor="let message of messages; let i = index;">
       <ion-item  text-wrap [attr.class]="message.user == null ? 'red' : 'blue'">
@@ -24,6 +24,6 @@
 </ion-content>
 
 <ion-footer>
-  <ion-input [(ngModel)]="message" type="text" placeholder="message..."></ion-input>
+  <ion-input #messageField [(ngModel)]="message" type="text" placeholder="message..."></ion-input>
   <button (click)="sendMessage()" ion-button full>Send</button>
 </ion-footer>

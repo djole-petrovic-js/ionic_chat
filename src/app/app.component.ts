@@ -24,7 +24,11 @@ export class MyApp {
   pagesAuthorized;
   forAll;
 
-  constructor(public platform: Platform, private menu: MenuController,private events:Events) {
+  constructor(
+    public platform: Platform,
+    private menu: MenuController,
+    private events:Events,
+  ) {
     this.initializeApp();
 
     this.events.subscribe('user:loggedin',() => {
@@ -35,7 +39,7 @@ export class MyApp {
       });
     });
 
-    this.events.subscribe('start:chatting-ready',(data) => {
+    this.events.subscribe('start:chatting-ready',() => {
       this.openPage({
         component:ChatMessages
       });
@@ -81,20 +85,11 @@ export class MyApp {
   }
 
   openPage(page) {
-    // Reset the content nav to have just this page
-    // we wouldn't want the back button to show in this scenario
-    if (
-      page.component === ChatMain ||
-      page.component === LogIn
-    ) {
+    if ( page.component === ChatMain || page.component === LogIn ) {
       this.nav.setRoot(page.component);
     } else {
       this.nav.push(page.component);
     }
-  }
-
-  changePage(page) {
-
   }
 
   chageMenus() {

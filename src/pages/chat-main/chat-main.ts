@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component,ApplicationRef } from '@angular/core';
 import { Events, AlertController, Alert } from 'ionic-angular';
 import { APIService } from '../../services/api.service';
 import { NotificationsService } from '../../services/notifications.service';
@@ -8,7 +8,7 @@ import { SocketService } from '../../services/socket.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
 import { TokenService } from '../../services/token.service';
 import { SettingsService } from '../../services/settings.service';
-import { Platform,ToastController } from 'ionic-angular';
+import { Platform,ToastController, Loading } from 'ionic-angular';
 import { BackgroundMode, Network } from 'ionic-native';
 import { App, LoadingController } from "ionic-angular/index";
 import { Subscription } from 'rxjs';
@@ -30,7 +30,6 @@ export class ChatMain {
   private onDisconnectSubscriber:Subscription;
   private backButtonDeregister:Function;
   private disconnectAlert:Alert;
-  private reconnectionStarted:boolean = false;
 
   constructor (
     private networkService:NetworkService,
@@ -48,6 +47,7 @@ export class ChatMain {
     private app:App,
     private toastController:ToastController,
     private loadingController:LoadingController,
+    private appRef:ApplicationRef
   ) {
     this.tokenService.startRefreshing();
 
@@ -65,7 +65,8 @@ export class ChatMain {
 
         this.onConnectSubscriber = Network.onConnect().subscribe(this.onConnect.bind(this));
         this.onDisconnectSubscriber = Network.onDisconnect().subscribe(this.onDisconnect.bind(this));
-
+        
+        BackgroundMode.configure({ silent:true });
         BackgroundMode.setDefaults({ silent:true });
         BackgroundMode.enable();
 
@@ -92,25 +93,27 @@ export class ChatMain {
     this.events.unsubscribe('message:stored-unread-message');
   }
 
-  private async onConnect() {
-    if ( this.reconnectionStarted ) return;
+  private _loadingOnReconnect;
 
+  private async onConnect() {
     if ( this.disconnectAlert ) {
       await this.disconnectAlert.dismiss();
     }
 
-    let loading;
+    if ( this._loadingOnReconnect ) {
+      await this._loadingOnReconnect.dismiss();
+    }
+
+    this._reconnectionOccured = true;
 
     try {
-      this.reconnectionStarted = true;
-
-      loading = this.loadingController.create({
+      this._loadingOnReconnect = this.loadingController.create({
         spinner:'bubbles',
         content:'Reconnecting...'
       });
 
       this.socketService.getSocket().connect();
-      await loading.present();
+      await this._loadingOnReconnect.present();
       await this.platform.ready();
       await this.tokenService.checkLoginStatus();
       await this.socketService.getConnection();
@@ -130,13 +133,14 @@ export class ChatMain {
         this.errorResolverService.presentAlertError('Reconnecting Error',e.errorCode);
       }
     } finally {
-      if ( loading ) { await loading.dismiss(); }
-      this.reconnectionStarted = false;
+      if ( this._loadingOnReconnect ) { await this._loadingOnReconnect.dismiss(); }
     }
   }
 
   private async onDisconnect() {
-    if ( this.reconnectionStarted ) return;
+    if ( this._loadingOnReconnect ) {
+      await this._loadingOnReconnect.dismiss();
+    }
 
     if ( BackgroundMode.isActive() ) return;
 
@@ -152,10 +156,13 @@ export class ChatMain {
   }
 
   private async onPause() {
+    this.stopTicking();
     this.tokenService.stopRefreshing();
   }
 
   private async onResume() {
+    this.startTicking();
+
     if ( !this.networkService.hasInternetConnection() ) {
       const toast = this.toastController.create({
         duration:3000,
@@ -163,11 +170,15 @@ export class ChatMain {
         message:'No Internet Connection!'
       });
   
-      toast.present();
-    } else {
+      return toast.present();
+    }
+
+    try {
       await this.tokenService.checkLoginStatus();
       this.tokenService.startRefreshing();
       await this.socketService.executeSocketOperations();
+    } catch(e) {
+      await this.onConnect();
     }
   }
 
@@ -185,7 +196,6 @@ export class ChatMain {
 
     if ( this.backBtnExitApp ) {
       this.apiService.changeLoginStatus({ status:0 });
-
       this.platform.exitApp();
     } else {
       const toast = this.toastController.create({
@@ -349,5 +359,22 @@ export class ChatMain {
 
         this.errorResolverService.presentAlertError('Error',err.errorCode);
       });
+  }
+
+  // updating the view stops when user is reconnected
+  // so start ticking only when reconnected
+  private _tickingInterval;
+  private _reconnectionOccured:boolean = false;
+
+  public startTicking() {
+    if ( !this._reconnectionOccured ) return;
+
+    this._tickingInterval = setInterval(() => { this.appRef.tick(); }, 500);
+  }
+
+  public stopTicking() {
+    try {
+      clearInterval(this._tickingInterval);
+    } catch(e) { }
   }
 }

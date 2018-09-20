@@ -23,6 +23,12 @@ export class Register {
   }
 
   private errors:string[];
+  private isAgreeToTermsChecked:boolean = false;
+  private showTermsOfUse:boolean = false;
+
+  private toggleTermsOfUse():void {
+    this.showTermsOfUse = !this.showTermsOfUse;
+  }
 
   constructor(
     private navCtrl: NavController,
@@ -44,7 +50,9 @@ export class Register {
         }).present();
       }
 
-      if ( !( await SecureDataStorage.Instance().checkIfSSAvailable() ) ) {
+      const secureStorageAvailable =  await SecureDataStorage.Instance().checkIfSSAvailable();
+
+      if ( !secureStorageAvailable ) {
         this.alertController.create({
           title:'Security Error.',
           message:`Please enable screen lock on your device. This application will not work without it.`
@@ -111,6 +119,14 @@ export class Register {
       return this.errors = form.errorMessages();
     }
 
+    if ( !this.isAgreeToTermsChecked ) {
+      return await this.alertController.create({
+        title:'Terms of use.',
+        subTitle:'To continue, agree with our terms of use!',
+        buttons:['OK']
+      }).present();
+    }
+
     const loadingValidatingEmailUsername = this.loadingController.create({
       spinner:'bubbles',
       content:'Validating...'
@@ -149,7 +165,7 @@ export class Register {
 
     this.user.deviceInfo = Config.getDeviceInfo();
 
-    this.authenticationService.register(this.user).subscribe((response) => {
+    this.authenticationService.register(this.user).subscribe(async(response) => {
       loading.dismiss();
 
       if ( response.success ) {
@@ -161,13 +177,17 @@ export class Register {
           deviceInfo:{}
         };
 
-        this.alertController.create({
+        const alert = this.alertController.create({
           title:'Registration Sucessfull',
           subTitle:'Confirm your email and and you can log in!',
           buttons:['OK']
-        }).present();
+        });
 
-        this.navCtrl.push(LogIn);
+        await alert.present();
+
+        alert.onDidDismiss(() => {
+          this.navCtrl.setRoot(LogIn);
+        });
       } else {
         this.errorResolverService.presentAlertError('Registration Failed',response.errorCode);
       }

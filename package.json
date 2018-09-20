@@ -23,6 +23,7 @@
         "@ionic-native/background-mode": "^4.12.2",
         "@ionic-native/core": "^4.12.2",
         "@ionic-native/device": "^4.12.2",
+        "@ionic-native/keyboard": "^4.14.0",
         "@ionic-native/network": "^4.12.2",
         "@ionic-native/secure-storage": "^4.12.2",
         "@ionic/storage": "2.1.3",
