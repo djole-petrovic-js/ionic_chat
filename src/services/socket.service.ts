@@ -50,7 +50,21 @@ export class SocketService {
     });
   }
 
+  public tempOperationsSet():boolean {
+    return !!this.tempOperations;
+  }
+
+  public getTempOperations() {
+    return this.tempOperations;
+  }
+
+  public removeTempOperations() {
+    this.tempOperations = null;
+  }
+
   public async executeTempOperations() {
+    if ( !this.tempOperations ) return;
+
     await this.executeSocketOperations();
     this.tempOperations = null;
   }

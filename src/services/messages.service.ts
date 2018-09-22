@@ -3,6 +3,7 @@ import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
 import { NavController, App } from "ionic-angular/index";
 import { ErrorResolverService } from './errorResolver.service';
+import { SocketService } from './socket.service';
 
 @Injectable()
 export class MessagesService {
@@ -20,7 +21,8 @@ export class MessagesService {
     private events:Events,
     private apiService:APIService,
     private application:App,
-    private errorResolverService:ErrorResolverService
+    private errorResolverService:ErrorResolverService,
+    private socketService:SocketService
   ) {
     this.app = application;
     
@@ -38,6 +40,10 @@ export class MessagesService {
 
     delete this.unreadMessages[username];
     this.events.publish('start:chatting-ready');
+  }
+
+  public getCurrentChattingUser():string {
+    return this.currentUserToChatWith;
   }
 
   private messageSend(message) {
@@ -115,11 +121,27 @@ export class MessagesService {
   }
 
   public getInitialMessages() {
-    return new Promise((resolve,reject) => {
+    return new Promise(async(resolve,reject) => {
       if ( !this.initialMessagesAreLoaded ) {
+        let messagesFromOperations = this.socketService.getTempOperations();
+
+        if ( messagesFromOperations.length > 0 ) {
+          messagesFromOperations = messagesFromOperations.map(message => {
+            return JSON.parse(message.data);
+          });
+
+          this.socketService.removeTempOperations();
+        } else {
+          messagesFromOperations = null;
+        }
+
         this.apiService
           .getInitialMessages()
           .subscribe((messages) => {
+            if ( messagesFromOperations ) {
+              messages = [...messagesFromOperations,...messages];
+            }
+
             this.initialMessagesAreLoaded = true;
             this.allMessages = {};
 

@@ -57,10 +57,12 @@ export class FriendsService {
     this.pendingRequests.push(friend);
   }
 
-  public removePendingRequest(friend) {
-    this.pendingRequests.splice(
-      this.pendingRequests.findIndex(x => x.id_user === friend.id_user),1
-    );
+  public removePendingRequest({ friend }) {
+    const index = this.pendingRequests.findIndex(x => x.id_user === friend.id_user);
+
+    if ( index !== -1 ) {
+      this.pendingRequests.splice(index,1);
+    }
   }
 
   public removeFriend(id_user) {
@@ -84,7 +86,11 @@ export class FriendsService {
   }
 
   public addFriend({ friend }):void {
-    this.friends.push(friend);
+    const ifExistsIndex:number = this.friends.findIndex(x => x.id_user === friend.id_user);
+
+    if ( ifExistsIndex === -1 ) {
+      this.friends.push(friend);
+    }
   }
 
   public deleteFriend(IdFriendToRemove) {

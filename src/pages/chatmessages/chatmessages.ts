@@ -9,7 +9,8 @@ import { Subscription } from 'rxjs';
   templateUrl: 'chatmessages.html',
 })
 export class ChatMessages {
-  private message = '';
+  private username:string;
+  private message:string = '';
   private messages = [];
   private scrollable = '';
   // alert only once that user is not loggedin
@@ -29,14 +30,13 @@ export class ChatMessages {
   ) { }
 
   ionViewWillEnter() {
+    this.username = this.messagesService.getCurrentChattingUser();
     this.onKeyboardShowSubscriber = this.keyboardNative.onKeyboardShow().subscribe(() => this.scroll());
-
     this.messages = [];
     this.events.subscribe('message:message-recieved',this.messageReceived.bind(this));
     this.events.subscribe('message:not-in-friends-list',this.notInFriendsList.bind(this));
     this.events.subscribe('message:user-not-online',this.userNotOnline.bind(this));
     this.messages = this.messagesService.getMessages();
-    
     this.scroll();
   }
 

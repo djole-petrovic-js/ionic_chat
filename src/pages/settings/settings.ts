@@ -216,7 +216,7 @@ export class Settings {
 
       return;
     }
-
+    
     if ( [true,false].indexOf(this.isToggled) === -1 ) return;
 
     const allowOfflineMessagesValue = this.isToggled ? 1 : 0;

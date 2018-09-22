@@ -78,7 +78,6 @@ export class ChatMain {
   }
 
   private subscribeEvents() {
-    this.events.subscribe('friends:user-confirmed',this.friendUserConfirmed.bind(this));
     this.events.subscribe('message:stored-unread-message',this.storedUnreadMessage.bind(this));
     this.events.subscribe('friend_you_removed',this.friendYouRemoved.bind(this));
     this.events.subscribe('friend:login',this.friendLogIn.bind(this));
@@ -88,7 +87,6 @@ export class ChatMain {
   private unSubscribeEvents() {
     this.events.unsubscribe('friend:login');
     this.events.unsubscribe('friend:logout');
-    this.events.unsubscribe('friends:user-confirmed');
     this.events.unsubscribe('friend_you_removed');
     this.events.unsubscribe('message:stored-unread-message');
   }
@@ -109,7 +107,8 @@ export class ChatMain {
     try {
       this._loadingOnReconnect = this.loadingController.create({
         spinner:'bubbles',
-        content:'Reconnecting...'
+        content:'Reconnecting...',
+        duration:5000
       });
 
       this.socketService.getSocket().connect();
@@ -195,7 +194,7 @@ export class ChatMain {
     }
 
     if ( this.backBtnExitApp ) {
-      this.apiService.changeLoginStatus({ status:0 });
+      await this.apiService.changeLoginStatus({ status:0 });
       this.platform.exitApp();
     } else {
       const toast = this.toastController.create({
@@ -207,15 +206,6 @@ export class ChatMain {
       toast.present();
       this.backBtnExitApp = true;
       setTimeout(() => this.backBtnExitApp = false,3000);
-    }
-  }
-
-  private async friendUserConfirmed() {
-    try {
-      this.friends = await this.friendsService.getFriends();
-      this.pendingRequests = await this.friendsService.getPendingRequets();
-    } catch(e) {
-      this.errorResolverService.presentAlertError('Confirm Friend',e.errorCode);
     }
   }
 
@@ -276,7 +266,7 @@ export class ChatMain {
           
           await loading.present();
         }
-
+        
         await this.loadData();
         await this.socketService.getConnection();
         await this.socketService.executeTempOperations();
@@ -300,7 +290,7 @@ export class ChatMain {
     try {
       await this.friendsService.cancelRequest(idUser);
 
-      this.friendsService.removePendingRequest({ id_user:idUser });
+      this.friendsService.removePendingRequest({ friend:{ id_user:idUser } });
       this.pendingRequests = await this.friendsService.getPendingRequets();
     } catch(e) {
       this.errorResolverService.presentAlertError('Error',e.errorCode);
@@ -345,8 +335,8 @@ export class ChatMain {
     this
       .apiService
       .confirmFriendRequest(id_user)
-      .subscribe((response) => {
-        loading.dismiss();
+      .subscribe(async(response) => {
+        await loading.dismiss();
 
         if ( response.success ) {
           this.notifications = this.notificationsService.dismissNotification(notificationID);
@@ -354,13 +344,18 @@ export class ChatMain {
         } else {
           this.errorResolverService.presentAlertError('Error',response.errorCode);
         }
-      },(err) => {
-        loading.dismiss();
+      },async () => {
+        await loading.dismiss();
 
-        this.errorResolverService.presentAlertError('Error',err.errorCode);
+        const alert = this.alertController.create({
+          title:'Error occured',
+          subTitle:'Error occured while trying to confirm this friend request. It seems like it has been canceled...',
+          buttons:['OK']
+        });
+
+        await alert.present();
       });
   }
-
   // updating the view stops when user is reconnected
   // so start ticking only when reconnected
   private _tickingInterval;

@@ -5,15 +5,15 @@
         <ion-icon name="menu"></ion-icon>
       </button>
     </ion-buttons>
-    <ion-title>NHC | Chat</ion-title>
+    <ion-title>NHC | {{ username }}</ion-title>
   </ion-navbar>
 </ion-header>
 
 <ion-content padding [class]="scrollable">
   <ion-list class="list">
     <div *ngFor="let message of messages; let i = index;">
-      <ion-item  text-wrap [attr.class]="message.user == null ? 'red' : 'blue'">
-        {{ message.user == null ? 'You' : message.user }} : {{ message.message }}
+      <ion-item text-wrap [attr.class]="message.user == null ? 'red' : 'blue'">
+        {{ message.message }}
       </ion-item>
       <button (click)="removeMessage(message,i)"
         color="danger"

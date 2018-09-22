@@ -110,48 +110,56 @@ export class Register {
   }
 
   private async register() {
-    const form = this.createFormObj();
+    let loadingValidatingEmailUsername;
 
-    form.bindValues(this.user);
-    form.validate();
+    try {
+      const form = this.createFormObj();
 
-    if ( !form.isValid() ) {
-      return this.errors = form.errorMessages();
-    }
+      form.bindValues(this.user);
+      form.validate();
 
-    if ( !this.isAgreeToTermsChecked ) {
-      return await this.alertController.create({
-        title:'Terms of use.',
-        subTitle:'To continue, agree with our terms of use!',
-        buttons:['OK']
-      }).present();
-    }
+      if ( !form.isValid() ) {
+        return this.errors = form.errorMessages();
+      }
 
-    const loadingValidatingEmailUsername = this.loadingController.create({
-      spinner:'bubbles',
-      content:'Validating...'
-    });
+      if ( !this.isAgreeToTermsChecked ) {
+        return await this.alertController.create({
+          title:'Terms of use.',
+          subTitle:'To continue, agree with our terms of use!',
+          buttons:['OK']
+        }).present();
+      }
 
-    loadingValidatingEmailUsername.present();
+      loadingValidatingEmailUsername = this.loadingController.create({
+        spinner:'bubbles',
+        content:'Validating...'
+      });
 
-    const checkIfExists:any = await this.checkIfUsernameEmailExists(this.user.username,this.user.email);
+      await loadingValidatingEmailUsername.present();
 
-    loadingValidatingEmailUsername.dismiss();
-    
-    const errors = [];
-    
-    if ( checkIfExists.usernameAlreadyExists ) {
-      errors.push('Username already exists');
-    }
+      const checkIfExists:any = await this.checkIfUsernameEmailExists(this.user.username,this.user.email);
 
-    if ( checkIfExists.emailAlreadyExists ) {
-      errors.push('Email already exists');
-    }
+      const errors = [];
+      
+      if ( checkIfExists.usernameAlreadyExists ) {
+        errors.push('Username already exists');
+      }
 
-    if ( errors.length > 0 ) {
-      this.errors = errors;
+      if ( checkIfExists.emailAlreadyExists ) {
+        errors.push('Email already exists');
+      }
 
-      return;
+      if ( errors.length > 0 ) {
+        this.errors = errors;
+
+        return;
+      }
+    } catch(e) {
+      return this.errorResolverService.presentAlertError('Registration Failed',e.errorCode);
+    } finally{
+      if ( loadingValidatingEmailUsername ) {
+        await loadingValidatingEmailUsername.dismiss();
+      }
     }
 
     this.errors = null;
@@ -161,12 +169,12 @@ export class Register {
       content:'Registration started'
     });
 
-    loading.present();
+    await loading.present();
 
     this.user.deviceInfo = Config.getDeviceInfo();
 
     this.authenticationService.register(this.user).subscribe(async(response) => {
-      loading.dismiss();
+      await loading.dismiss();
 
       if ( response.success ) {
         this.user = {
@@ -185,9 +193,7 @@ export class Register {
 
         await alert.present();
 
-        alert.onDidDismiss(() => {
-          this.navCtrl.setRoot(LogIn);
-        });
+        alert.onDidDismiss(() => this.navCtrl.setRoot(LogIn));
       } else {
         this.errorResolverService.presentAlertError('Registration Failed',response.errorCode);
       }
