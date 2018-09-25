@@ -3,8 +3,8 @@ import { SecureDataStorage } from '../Libs/SecureDataStorage';
 
 export class Config {
   private static _config = {
-    // API_URL:'http://192.168.0.104:3000/',
-    API_URL:'https://nohistorychat.com/',
+    API_URL:'http://192.168.0.104:3000/',
+    // API_URL:'https://nohistorychat.com/',
     ENV:'production',
     IS_PRODUCTION:true
   }

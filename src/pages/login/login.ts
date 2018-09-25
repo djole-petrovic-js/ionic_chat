@@ -1,6 +1,5 @@
 import { Component } from '@angular/core';
 import { Events, LoadingController, AlertController } from 'ionic-angular';
-import { Network } from 'ionic-native';
 import { Platform } from 'ionic-angular';
 import { AuthenticationService } from '../../services/authentication.service';
 import { APIService } from '../../services/api.service';
@@ -13,6 +12,7 @@ import { Form } from '../../Libs/Form';
 import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 import { PincodeController, PinCode } from 'ionic2-pincode-input';
 import { NetworkService } from '../../services/network.service';
+import { MessagesService } from '../../services/messages.service';
 
 @Component({
   selector: 'page-home',
@@ -43,6 +43,7 @@ export class LogIn {
     private alertController:AlertController,
     private platform:Platform,
     private pincodeCtrl:PincodeController,
+    private messagesService:MessagesService
   ) { }
 
   async ionViewWillEnter() {
@@ -77,7 +78,7 @@ export class LogIn {
         this.apiService.changeLoginStatus({ status:1 }),
       ]);
 
-      this.socketService.setTempOperations(operations);
+      this.messagesService.setTempMessages(operations);
 
       await this.apiService.deleteOperations({  });
 
@@ -143,7 +144,7 @@ export class LogIn {
     await this.pinCodeController.present();
   }
 
-  private logInWithPin(pin:string) {
+  private async logInWithPin(pin:string) {
     const form = new Form({
       pin:'bail|required|regex:^[1-9][0-9]{3}$'
     });
@@ -182,7 +183,6 @@ export class LogIn {
       await this._onSuccessfullLogin(response);
 
       loading.dismiss();
-      this.pinCodeController = null; 
     },(err) => {
       loading.dismiss();
       this.errorResolverService.presentAlertError('Login Error',err.errorCode);
@@ -201,7 +201,7 @@ export class LogIn {
 
         const { operations } = await this.apiService.getSocketOperations();
 
-        this.socketService.setTempOperations(operations);
+        this.messagesService.setTempMessages(operations)
 
         await Promise.all([
           this.apiService.deleteOperations({  }),

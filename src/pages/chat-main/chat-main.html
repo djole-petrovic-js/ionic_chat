@@ -70,7 +70,6 @@
       >
       {{ unreadMessages[friend.username] ? ['(',unreadMessages[friend.username].length,')'].join("") : '' }}
       {{ friend.username }}
-      <span [class]="friend.online == 0 ? 'red' : 'green'" >&nbsp;{{ friend.online == 0 ? '(offline)' : '(online)' }}</span>
       </button>
     </ion-item>
   </ion-list>

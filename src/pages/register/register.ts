@@ -7,6 +7,7 @@ import { Form } from '../../Libs/Form';
 import { LogIn } from '../login/login';
 import { Config } from '../../Libs/Config';
 import { SecureDataStorage } from '../../Libs/SecureDataStorage';
+import { NetworkService } from '../../services/network.service';
 
 @Component({
   selector: 'page-register',
@@ -35,7 +36,8 @@ export class Register {
     private authenticationService:AuthenticationService,
     private errorResolverService:ErrorResolverService,
     private loadingController:LoadingController,
-    private alertController:AlertController
+    private alertController:AlertController,
+    private networkService:NetworkService
   ) { }
 
   private async ionViewWillEnter() {
@@ -110,6 +112,14 @@ export class Register {
   }
 
   private async register() {
+    if ( !this.networkService.hasInternetConnection() ){
+      return await this.alertController.create({
+        title:'Connection Error',
+        message:'No internet connection.',
+        buttons:['OK']
+      }).present();
+    }
+
     let loadingValidatingEmailUsername;
 
     try {

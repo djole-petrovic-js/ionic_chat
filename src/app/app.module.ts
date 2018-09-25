@@ -22,11 +22,12 @@ import { ChatMessages } from '../pages/chatmessages/chatmessages';
 import { Settings } from '../pages/settings/settings';
 import { About } from '../pages/about/about';
 
+import { AppService } from '../services/app.service';
 import { AuthenticationService } from '../services/authentication.service';
 import { APIService } from '../services/api.service';
 import { NotificationsService } from '../services/notifications.service';
-import { MessagesService } from '../services/messages.service';
 import { SocketService } from '../services/socket.service';
+import { MessagesService } from '../services/messages.service';
 import { FriendsService } from '../services/friends.service';
 import { SettingsService } from '../services/settings.service';
 import { TokenService } from '../services/token.service';
@@ -69,6 +70,7 @@ import { NetworkService } from '../services/network.service';
     About
   ],
   providers: [
+    AppService,
     Keyboard,
     BackgroundMode,
     SecureStorage,

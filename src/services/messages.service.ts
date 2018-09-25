@@ -1,9 +1,11 @@
 import { Injectable } from '@angular/core';
 import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
-import { NavController, App } from "ionic-angular/index";
+import { NavController } from 'ionic-angular/index';
 import { ErrorResolverService } from './errorResolver.service';
-import { SocketService } from './socket.service';
+import { ChatMessages } from '../pages/chatmessages/chatmessages';
+import { AppService } from './app.service';
+import { ViewController } from 'ionic-angular';
 
 @Injectable()
 export class MessagesService {
@@ -13,19 +15,22 @@ export class MessagesService {
   private currentUserToChatWith:string;
   private initialMessagesAreLoaded:boolean = false;
   private currentUserID;
+  private nav:ViewController;
 
-  private nav:NavController;
-  private app:App;
+  private tempMessages = [];
+
+  public setTempMessages(operations) {
+    this.tempMessages = operations.filter(x => {
+      return x.name === 'message:new-message';
+    });
+  }
 
   constructor(
     private events:Events,
     private apiService:APIService,
-    private application:App,
     private errorResolverService:ErrorResolverService,
-    private socketService:SocketService
+    private appService:AppService
   ) {
-    this.app = application;
-    
     this.events.subscribe('start:chatting',this.startChatting.bind(this));
     this.events.subscribe('message:send',this.messageSend.bind(this));
     this.events.subscribe('message:new-message',this.newMessage.bind(this));
@@ -65,10 +70,10 @@ export class MessagesService {
     const messageToStore = { user:data.senderUsername , message:data.message };
     // If the page is ChatMessages and current user to chat with is
     // user sending the message, dont store it as unread message
-    this.nav = this.application.getActiveNavs()[0];
+    this.nav = this.appService.getActivePage();
 
     if ( !(
-      this.nav.getActive().name === 'ChatMessages' && 
+      this.nav.component === ChatMessages && 
       data.senderUsername === this.currentUserToChatWith
     ) ) {
       // now we store the message as unread
@@ -123,14 +128,14 @@ export class MessagesService {
   public getInitialMessages() {
     return new Promise(async(resolve,reject) => {
       if ( !this.initialMessagesAreLoaded ) {
-        let messagesFromOperations = this.socketService.getTempOperations();
+        let messagesFromOperations = this.tempMessages;
 
         if ( messagesFromOperations.length > 0 ) {
           messagesFromOperations = messagesFromOperations.map(message => {
             return JSON.parse(message.data);
           });
 
-          this.socketService.removeTempOperations();
+          this.tempMessages = [];
         } else {
           messagesFromOperations = null;
         }

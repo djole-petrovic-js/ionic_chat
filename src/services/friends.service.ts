@@ -49,10 +49,6 @@ export class FriendsService {
     }
   }
 
-  public areFriendsLoaded():boolean {
-    return this.friendsLoaded;
-  }
-
   public addToPendingRequest(friend) {
     this.pendingRequests.push(friend);
   }
@@ -71,10 +67,6 @@ export class FriendsService {
     if ( friendIndex !== -1 ) {
       this.friends.splice(friendIndex,1);
     }
-  }
-
-  public forceNewLoad():void {
-    this.friendsLoaded = false;
   }
 
   public userLogIn(data):void {
@@ -119,13 +111,13 @@ export class FriendsService {
       }
 
       this.apiService.getAllFriends().subscribe((res) => {
-          this.friendsLoaded = true;
-          this.friends = res;
+        this.friendsLoaded = true;
+        this.friends = res;
 
-          resolve(res);
-        },(err) => {
-          reject(err);
-        });
+        resolve(res);
+      },(err) => {
+        reject(err);
+      });
     });
   }
 }

@@ -1,12 +1,15 @@
 import { Injectable } from '@angular/core';
-import { Events } from 'ionic-angular';
 import { FriendsService } from './friends.service';
+import { Events, NavController } from 'ionic-angular';
 import { ToastController } from 'ionic-angular';
 import * as io from 'socket.io-client';
 import { Config } from '../Libs/Config';
 import { SecureDataStorage } from '../Libs/SecureDataStorage';
 import { BackgroundMode } from 'ionic-native';
 import { APIService } from '../services/api.service';
+import { ChatMessages } from '../pages/chatmessages/chatmessages';
+import { AppService } from './app.service';
+import { ViewController } from 'ionic-angular';
 
 @Injectable()
 export class SocketService {
@@ -15,6 +18,7 @@ export class SocketService {
   private socket;
   private subscribeToEvents:boolean = true;
   private tempOperations;
+  private nav:ViewController;
 
   public getSocket() {
     return this.socket;
@@ -24,7 +28,8 @@ export class SocketService {
     private events:Events,
     private friendsService:FriendsService,
     private toastController:ToastController,
-    private apiService:APIService
+    private apiService:APIService,
+    private appService:AppService
   ) {
     this.events.subscribe('user:logout',() => {
       this.subscribeToEvents = true;
@@ -44,24 +49,6 @@ export class SocketService {
     }
   }
 
-  public setTempOperations(operations) {
-    this.tempOperations = operations.filter(x => {
-      return x.name === 'message:new-message';
-    });
-  }
-
-  public tempOperationsSet():boolean {
-    return !!this.tempOperations;
-  }
-
-  public getTempOperations() {
-    return this.tempOperations;
-  }
-
-  public removeTempOperations() {
-    this.tempOperations = null;
-  }
-
   public async executeTempOperations() {
     if ( !this.tempOperations ) return;
 
@@ -69,6 +56,16 @@ export class SocketService {
     this.tempOperations = null;
   }
   
+  private findLastLoginLoginEvent(operations) {
+    for ( let i = operations.length - 1 ; i >= 0 ; i-- ) {
+      if ( ['friend:login','friend:logout'].indexOf(operations[i].name) !== -1 ) {
+        return operations[i].id_operation;
+      }
+    }
+
+    return null;
+  }
+
   public async executeSocketOperations(forcedOperations?) {
     try {
       let operations;
@@ -89,6 +86,20 @@ export class SocketService {
       }
 
       if ( operations.length > 0 ) {
+        // first filter all login logout events, because there
+        // could be a lot of them, just find the last one and remove others
+        const lastLoginLogoutID = this.findLastLoginLoginEvent(operations);
+
+        if ( lastLoginLogoutID ) {
+          operations = operations.filter(op => {
+            if ( op.name === 'friend:login' || op.name === 'friend:logout' ) {
+              return op.id_operation === lastLoginLogoutID;
+            }
+
+            return true;
+          });
+        }
+
         for ( let { name,data } of operations ) {
           const parsedData = JSON.parse(data);
 
@@ -171,15 +182,19 @@ export class SocketService {
   
           this.socket.on('message:new-message',(message,ack) => {
             this.events.publish('message:new-message',message);
-            
+
             if ( !BackgroundMode.isActive() ) {
-              const toast = this.toastController.create({
-                duration:3000,
-                position:'top',
-                message:`${message.senderUsername}: ${message.message}`
-              });
-        
-              toast.present();
+              this.nav = this.appService.getActivePage();
+
+              if ( this.nav.component !== ChatMessages ) {
+                const toast = this.toastController.create({
+                  duration:3000,
+                  position:'top',
+                  message:`${message.senderUsername}: ${message.message}`
+                });
+          
+                toast.present();
+              }
             }
 
             ack({ success:true });

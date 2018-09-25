@@ -25,5 +25,5 @@
 
 <ion-footer>
   <ion-input #messageField [(ngModel)]="message" type="text" placeholder="message..."></ion-input>
-  <button (click)="sendMessage()" ion-button full>Send</button>
+  <button (click)="sendMessage();messageField.setFocus()" ion-button full>Send</button>
 </ion-footer>
