@@ -166,7 +166,9 @@ export class LogIn {
         buttons:['OK']
       });
 
-      return alert.present();
+      await alert.present();
+
+      return Promise.reject(false);
     }
 
     const body = { pin,deviceInfo:Config.getDeviceInfo() };
@@ -178,15 +180,22 @@ export class LogIn {
 
     loading.present();
 
-    this.authenticationService.logIn(body).subscribe(async(response) => {
+    try {
+      const response = await this.authenticationService.logIn(body).toPromise();
+
       await this.pinCodeController.dismiss();
       await this._onSuccessfullLogin(response);
 
       loading.dismiss();
-    },(err) => {
+
+      return Promise.resolve(true);
+    } catch(e) {
       loading.dismiss();
-      this.errorResolverService.presentAlertError('Login Error',err.errorCode);
-    });
+      this.errorResolverService.presentAlertError('Login Error',e.errorCode);
+
+      return Promise.reject(false);
+
+    }
   }
 
   private async _onSuccessfullLogin(response) {

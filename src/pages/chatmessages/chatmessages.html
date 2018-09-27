@@ -5,7 +5,7 @@
         <ion-icon name="menu"></ion-icon>
       </button>
     </ion-buttons>
-    <ion-title>NHC | {{ username }}</ion-title>
+    <ion-title><span [class]="user?.online ? 'green' : 'red'">NHC | {{ user?.username }}</span></ion-title>
   </ion-navbar>
 </ion-header>
 

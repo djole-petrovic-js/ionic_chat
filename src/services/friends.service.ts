@@ -49,6 +49,10 @@ export class FriendsService {
     }
   }
 
+  public getFriend(id_user:number) {
+    return this.friends.find(x => x.id_user === id_user);
+  }
+
   public addToPendingRequest(friend) {
     this.pendingRequests.push(friend);
   }

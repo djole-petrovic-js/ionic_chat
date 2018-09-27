@@ -13,19 +13,19 @@
   <ion-list>
     <ion-item>
       <ion-label>Username</ion-label>
-      <ion-input [(ngModel)]="user.username" type="text"></ion-input>
+      <ion-input (ionFocus)="onInputFocus()" [(ngModel)]="user.username" type="text"></ion-input>
     </ion-item>
     <ion-item>
       <ion-label>E-Mail</ion-label>
-      <ion-input [(ngModel)]="user.email" type="text"></ion-input>
+      <ion-input (ionFocus)="onInputFocus()" [(ngModel)]="user.email" type="text"></ion-input>
     </ion-item>
     <ion-item>
       <ion-label>Password</ion-label>
-      <ion-input [(ngModel)]="user.password" type="password"></ion-input>
+      <ion-input (ionFocus)="onInputFocus()" [(ngModel)]="user.password" type="password"></ion-input>
     </ion-item>
     <ion-item>
       <ion-label>Confirm Password</ion-label>
-      <ion-input [(ngModel)]="user.confirmPassword" type="password"></ion-input>
+      <ion-input (ionFocus)="onInputFocus()" [(ngModel)]="user.confirmPassword" type="password"></ion-input>
     </ion-item>
     <ion-item text-wrap>
       <ion-label>By opening an account, you agree with our terms of use.</ion-label>
@@ -38,7 +38,7 @@
         ion-button
         color="primary"
         block
-      >Read terms of use</button>
+      >{{ !showTermsOfUse ? 'Read terms of use' : 'Hide' }}</button>
     </ion-item>
     <ion-item text-wrap *ngIf="isAgreeToTermsChecked && showTermsOfUse">
       <p>
@@ -46,12 +46,14 @@
         authentification purposes, and device information is stored for security reasons. We do not share
         your data with anyone, just use internaly.
       </p>
+      <br/>
       <p>
         User may use the service only for lawful purposes and in accordance with these Terms of Use.
         User agree not to use the application in any way that violates any applicable local or international law or 
         regulations.We shall not be liable for any damage done by users of this application, and any illegal
         use of this application. User is responisble for anything he writes to another users.
       </p>
+      <br/>
       <p>
         For user to use this application, he must at all times agree with this terms of use. 
         You should stop using this application if you do not agree with our terms Terms.

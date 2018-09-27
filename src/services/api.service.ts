@@ -203,16 +203,24 @@ export class APIService {
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
-  public getInitialMessages() {
-    return this.http.get(this.initialMessagesURL,{ headers:this._headers() })
-      .map((res) => res.json())
-      .catch((error) => Observable.throw(error || 'Server error'));
+  public async getInitialMessages() {
+    try {
+      const response = await this.http.get(this.initialMessagesURL,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
   }
 
-  public deleteInitialMessages(userID:number) {
-    return this.http.post(this.deleteInitialMessagesURL,{ userID },{ headers:this._headers() })
-      .map((res) => res.json())
-      .catch((error) => Observable.throw(error || 'Server error'));
+  public async deleteInitialMessages(userID:number) {
+    try {
+      const res = await this.http.post(this.deleteInitialMessagesURL,{ userID },{ headers:this._headers() }).toPromise();
+
+      return res.json();
+    } catch(e) {
+      throw e.json();
+    }
   }
 
   public async deleteAccount(body) {

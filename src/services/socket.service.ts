@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { FriendsService } from './friends.service';
-import { Events, NavController } from 'ionic-angular';
+import { Events,ViewController } from 'ionic-angular';
 import { ToastController } from 'ionic-angular';
 import * as io from 'socket.io-client';
 import { Config } from '../Libs/Config';
@@ -9,7 +9,6 @@ import { BackgroundMode } from 'ionic-native';
 import { APIService } from '../services/api.service';
 import { ChatMessages } from '../pages/chatmessages/chatmessages';
 import { AppService } from './app.service';
-import { ViewController } from 'ionic-angular';
 
 @Injectable()
 export class SocketService {
@@ -17,7 +16,6 @@ export class SocketService {
   private shouldLoadOperations:boolean = false;
   private socket;
   private subscribeToEvents:boolean = true;
-  private tempOperations;
   private nav:ViewController;
 
   public getSocket() {
@@ -49,13 +47,6 @@ export class SocketService {
     }
   }
 
-  public async executeTempOperations() {
-    if ( !this.tempOperations ) return;
-
-    await this.executeSocketOperations();
-    this.tempOperations = null;
-  }
-  
   private findLastLoginLoginEvent(operations) {
     for ( let i = operations.length - 1 ; i >= 0 ; i-- ) {
       if ( ['friend:login','friend:logout'].indexOf(operations[i].name) !== -1 ) {
@@ -70,19 +61,14 @@ export class SocketService {
     try {
       let operations;
 
-      if ( !forcedOperations ) {
-        if ( !this.shouldLoadOperations && !this.tempOperations ) return;
-
-        if ( this.tempOperations ) {
-          operations = this.tempOperations;
-        } else {
-          if ( !this.shouldLoadOperations ) return;
-
-          const response = await this.apiService.getSocketOperations();
-          operations = response.operations;
-        }
-      } else {
+      if ( forcedOperations ) {
         operations = forcedOperations;
+      } else {
+        if ( !this.shouldLoadOperations ) return;
+
+        const response = await this.apiService.getSocketOperations();
+
+        operations = response.operations;
       }
 
       if ( operations.length > 0 ) {

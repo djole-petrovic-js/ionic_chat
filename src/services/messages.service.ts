@@ -1,11 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
-import { NavController } from 'ionic-angular/index';
-import { ErrorResolverService } from './errorResolver.service';
 import { ChatMessages } from '../pages/chatmessages/chatmessages';
 import { AppService } from './app.service';
 import { ViewController } from 'ionic-angular';
+import { FriendsService } from './friends.service';
 
 @Injectable()
 export class MessagesService {
@@ -16,7 +15,6 @@ export class MessagesService {
   private initialMessagesAreLoaded:boolean = false;
   private currentUserID;
   private nav:ViewController;
-
   private tempMessages = [];
 
   public setTempMessages(operations) {
@@ -28,8 +26,8 @@ export class MessagesService {
   constructor(
     private events:Events,
     private apiService:APIService,
-    private errorResolverService:ErrorResolverService,
-    private appService:AppService
+    private appService:AppService,
+    private friendsService:FriendsService
   ) {
     this.events.subscribe('start:chatting',this.startChatting.bind(this));
     this.events.subscribe('message:send',this.messageSend.bind(this));
@@ -41,14 +39,14 @@ export class MessagesService {
     this.currentUserToChatWith = username;
     this.currentUserID = id;
 
-    await this._deleteInitialMessages(id);
+    this._deleteInitialMessages(id);
 
     delete this.unreadMessages[username];
     this.events.publish('start:chatting-ready');
   }
 
-  public getCurrentChattingUser():string {
-    return this.currentUserToChatWith;
+  public getCurrentChattingUserObj() {
+    return this.friendsService.getFriend(this.currentUserID);
   }
 
   private messageSend(message) {
@@ -125,44 +123,40 @@ export class MessagesService {
     return this.unreadMessages;
   }
 
-  public getInitialMessages() {
-    return new Promise(async(resolve,reject) => {
-      if ( !this.initialMessagesAreLoaded ) {
-        let messagesFromOperations = this.tempMessages;
+  public async getInitialMessages() {
+    try {
+      if ( this.initialMessagesAreLoaded ) return this.allMessages;
 
-        if ( messagesFromOperations.length > 0 ) {
-          messagesFromOperations = messagesFromOperations.map(message => {
-            return JSON.parse(message.data);
-          });
+      let messagesFromOperations = this.tempMessages;
 
-          this.tempMessages = [];
-        } else {
-          messagesFromOperations = null;
-        }
+      if ( messagesFromOperations.length > 0 ) {
+        messagesFromOperations = messagesFromOperations.map(message => {
+          return JSON.parse(message.data);
+        });
 
-        this.apiService
-          .getInitialMessages()
-          .subscribe((messages) => {
-            if ( messagesFromOperations ) {
-              messages = [...messagesFromOperations,...messages];
-            }
-
-            this.initialMessagesAreLoaded = true;
-            this.allMessages = {};
-
-            if ( messages.length !== 0 ) {
-              this._storeInitialMessages(messages);
-            }
-
-            this.unreadMessages = JSON.parse(JSON.stringify(this.allMessages));
-            resolve(this.allMessages);
-          },(err) => {
-            reject(err);
-          });
+        this.tempMessages = [];
       } else {
-        resolve(this.allMessages);
+        messagesFromOperations = null;
       }
-    });
+
+      let messages = await this.apiService.getInitialMessages();
+
+      if ( messagesFromOperations ) {
+        messages = [...messagesFromOperations,...messages];
+      }
+
+      this.initialMessagesAreLoaded = true;
+      this.allMessages = {};
+
+      if ( messages.length !== 0 ) {
+        this._storeInitialMessages(messages);
+      }
+
+      this.unreadMessages = JSON.parse(JSON.stringify(this.allMessages));
+      return this.allMessages;
+    } catch(e) {
+      throw e;
+    }
   }
 
   public refreshInitialMessages():void {
@@ -186,18 +180,22 @@ export class MessagesService {
     }
   }
 
-  private _deleteInitialMessages(userID:number):void {
+  private async _deleteInitialMessages(userID:number):Promise<void> {
     if ( this.messagesToDelete.indexOf(userID) !== -1 ) {
-      this.apiService.deleteInitialMessages(userID)
-        .subscribe(() => {
-          const messageIndex = this.messagesToDelete.indexOf(userID);
+      try {
+        await this.apiService.deleteInitialMessages(userID);
 
-          if ( messageIndex !== -1 ) {
-            this.messagesToDelete.splice(messageIndex,1);
-          }
-        },(err) => {
-          this.errorResolverService.presentAlertError('Confirm Friend',err.errorCode);
-        });
+        const messageIndex = this.messagesToDelete.indexOf(userID);
+
+        if ( messageIndex !== -1 ) {
+          this.messagesToDelete.splice(messageIndex,1);
+        }
+      } catch(e) { 
+        // if user has problem with deleting initial messages
+        // as soon as he visits this page again with internet connection
+        // messages will be deleted,or when he restarts the application.
+        // So, it is ok to just do nothing if http exception occures.
+      }
     }
   }
 }

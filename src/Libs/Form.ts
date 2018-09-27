@@ -1,8 +1,8 @@
 export class Form {
   private _rules;
-  private _errorMessages;
-  private _fieldsToStopValidating;
-  private _isValidateCalled;
+  private _errorMessages:string[];
+  private _fieldsToStopValidating:string[];
+  private _isValidateCalled:boolean;
   private _customErrorMessages;
   private _errorMessagesForEachField;
   private _currentlyEnvokedMethod;
@@ -95,7 +95,7 @@ export class Form {
 
   _pushError(field,error) {
     if (
-      this._fieldsToStopValidating.includes(field) &&
+      this._fieldsToStopValidating.indexOf(field) !== -1 &&
       this._errorMessagesForEachField[field].length > 0
     ) { return; }
 
@@ -196,7 +196,7 @@ export class Form {
   }
 
   inlist(field,listString) {
-    if ( !listString.split(',').includes(this._formValues[field]) ) {
+    if ( listString.split(',').indexOf(this._formValues[field]) === -1 ) {
       this._pushError(field,`Value for ${ field } is not in list of acceptable choices...`);
     }
   }

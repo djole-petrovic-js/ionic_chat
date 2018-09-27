@@ -276,7 +276,6 @@ export class ChatMain {
         
         await this.loadData();
         await this.socketService.getConnection();
-        await this.socketService.executeTempOperations();
       } catch(err) {
         this.errorResolverService.presentAlertError('Error',err.statusCode);
       } finally {

@@ -9,17 +9,16 @@ import { Subscription } from 'rxjs';
   templateUrl: 'chatmessages.html',
 })
 export class ChatMessages {
-  private username:string;
+  private user;
   private message:string = '';
   private messages = [];
   private scrollable = '';
   private newMessages:boolean = false;
   // alert only once that user is not loggedin
-  private loggedInNotified:boolean = false;
   private onKeyboardShowSubscriber:Subscription;
   private onKeyboardHideSubscriber:Subscription;
 
-  @ViewChild(Content) content: Content;
+  @ViewChild( Content ) content: Content;
   @ViewChild('messageField') messageField;
 
   constructor(
@@ -32,7 +31,7 @@ export class ChatMessages {
   ) { }
 
   ionViewWillEnter() {
-    this.username = this.messagesService.getCurrentChattingUser();
+    this.user = this.messagesService.getCurrentChattingUserObj();
     
     this.onKeyboardShowSubscriber = this.keyboardNative.onKeyboardShow().subscribe(() => this.scroll());
 
@@ -52,14 +51,12 @@ export class ChatMessages {
     this.messages = [];
     this.events.subscribe('message:message-recieved',this.messageReceived.bind(this));
     this.events.subscribe('message:not-in-friends-list',this.notInFriendsList.bind(this));
-    this.events.subscribe('message:user-not-online',this.userNotOnline.bind(this));
     this.messages = this.messagesService.getMessages();
     setTimeout(() => { this.content.scrollToBottom(0); },50);
   }
 
   ionViewWillLeave() {
     this.events.unsubscribe('message:message-recieved');
-    this.events.unsubscribe('message:user-not-online');
     this.events.unsubscribe('message:not-in-friends-list');
     this.onKeyboardShowSubscriber.unsubscribe();
     this.onKeyboardHideSubscriber.unsubscribe();
@@ -79,21 +76,8 @@ export class ChatMessages {
     alert.present();
   }
 
-  private userNotOnline() {
-    if ( this.loggedInNotified ) return;
-
-    const toast = this.toastController.create({
-      message:'This user is not online.',
-      position:'top',
-      duration:2000
-    });
-
-    toast.present();
-    this.loggedInNotified = true;
-  }
-
   private messageReceived(message) {
-    if ( message.user !== this.username ) {
+    if ( message.user !== this.user.username ) {
       if ( this.keyboardIonic.isOpen() ) {
         this.newMessages = true;
       } else {

@@ -111,6 +111,10 @@ export class Register {
     return form;
   }
 
+  private onInputFocus() {
+    this.errors = [];
+  }
+
   private async register() {
     if ( !this.networkService.hasInternetConnection() ){
       return await this.alertController.create({
@@ -129,7 +133,9 @@ export class Register {
       form.validate();
 
       if ( !form.isValid() ) {
-        return this.errors = form.errorMessages();
+        this.errors = form.errorMessages();
+
+        return;
       }
 
       if ( !this.isAgreeToTermsChecked ) {

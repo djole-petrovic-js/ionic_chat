@@ -6,7 +6,7 @@ export class Config {
     API_URL:'http://192.168.0.104:3000/',
     // API_URL:'https://nohistorychat.com/',
     ENV:'production',
-    IS_PRODUCTION:true
+    IS_PRODUCTION:false
   }
 
   private static _defaultInfo = {
