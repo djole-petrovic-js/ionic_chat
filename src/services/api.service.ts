@@ -4,7 +4,6 @@ import { Observable } from 'rxjs/Rx';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
 import { Config } from '../Libs/Config';
-import { SecureDataStorage } from '../Libs/SecureDataStorage';
 
 @Injectable()
 export class APIService {
@@ -19,7 +18,6 @@ export class APIService {
   private addFriendURL:string = this.mainURL + 'api/friends/add_friend';
   private deleteFriendURL:string = this.mainURL + 'api/friends/delete_friend';
   private notificationsURL:string = this.mainURL + 'api/notifications/';
-  private isLoggedInURL:string = this.mainURL + 'api/login/check_login';
   private searchURL:string = this.mainURL + 'api/search';
   private changePasswordURL:string = this.mainURL + 'api/users/changepassword';
   private userInfoURL:string = this.mainURL + 'api/users/userinfo';
@@ -97,32 +95,8 @@ export class APIService {
     }
   }
 
-  public isLoggedIn():any {
-    return new Promise(async (resolve,reject) => {
-      const token = await this.getToken();
-
-      if ( !token ) {
-        return reject(false);
-      }
-
-      this.token = token;
-      
-      this
-        .http
-        .get(this.isLoggedInURL , { headers:this._headers() })
-        .map((res) => res.json())
-        .subscribe((res) => {
-          resolve(res);
-
-          reject(false);
-        },() => {
-          reject(false);
-        });
-    });
-  }
-
   public async refreshToken() {
-    const response= await this.http.post(this.refreshTokenURL,{},{ headers:this._headers() }).toPromise();
+    const response = await this.http.post(this.refreshTokenURL,{},{ headers:this._headers() }).toPromise();
 
     return response.json();
   }
@@ -224,27 +198,18 @@ export class APIService {
   }
 
   public async deleteAccount(body) {
-    const response= await this.http.post(this.deleteAccountURL,body,{ headers:this._headers() }).toPromise();
+    const response = await this.http.post(this.deleteAccountURL,body,{ headers:this._headers() }).toPromise();
 
     return response.json();
   }
 
   public async grantAccessToken(body) {
     const headers = new Headers();
+
     headers.append('Content-Type','application/json');
 
-    const response= await this.http.post(this.grantAccessTokenURL,body,{ headers }).toPromise();
+    const response = await this.http.post(this.grantAccessTokenURL,body,{ headers }).toPromise();
 
     return response.json();
-  }
-
-  public async getToken() {
-    try {
-      const token = await SecureDataStorage.Instance().get('token');
-
-      return token;
-    } catch(e) {
-      throw e;
-    }
   }
 }

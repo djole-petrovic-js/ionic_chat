@@ -116,13 +116,18 @@ export class ChatMessages {
     }
   }
 
-  private removeMessage(msg):void {
-    this.messagesService.removeLocalMessage(msg);
-    this.messages = this.messagesService.getMessages();
-  }
-
-  private sendMessage():void {
+  private sendMessage() {
     if ( this.message !== '' ) {
+      if ( this.message.length >= 255 ) {
+        const alert = this.alertController.create({
+          title:'Sending Error.',
+          message:'Message needs to have less than 255 characters',
+          buttons:['OK']
+        });
+
+        return alert.present();
+      }
+
       this.events.publish('message:send',this.message);
       this.messages = this.messagesService.getMessages();
       this.message = '';

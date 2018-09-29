@@ -10,32 +10,6 @@ page-chatmessages {
     flex-direction: column;
   }
 
-  //delete buttons
-  .left {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    float:left;
-    width:8%;
-    height: 5%;
-    background:white;
-    color:#387ef5;
-    border:2px solid #387ef5;
-  }
-
-  //delete buttons
-  .right {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    float:right;
-    width:8%;
-    height: 5%;
-    background:#387ef5;
-    color:white;
-    border:2px solid #387ef5; 
-  }
-
   .item-inner {
     // border-radius: 4%;
     width:75%;

@@ -60,7 +60,7 @@ export class LogIn {
     const loading = this.loadingController.create({
       spinner:'bubbles',
       content:'Loading...',
-      dismissOnPageChange: true 
+      dismissOnPageChange:true 
     });
 
     await loading.present();
@@ -68,8 +68,6 @@ export class LogIn {
     const isLoggedIn = await this.tokenService.checkLoginStatus();
 
     if ( isLoggedIn ) {
-      await loading.dismiss();
-
       this.settingsService.toggleMainLoadingScreen();
       // get all operations, socket service will execute just the ones
       // that are new messages, not friend request notifications etc.
@@ -81,6 +79,7 @@ export class LogIn {
       this.messagesService.setTempMessages(operations);
 
       await this.apiService.deleteOperations({  });
+      await loading.dismiss();
 
       return this.events.publish('user:loggedin');
     }

@@ -15,15 +15,11 @@
       <ion-item text-wrap [attr.class]="message.user == null ? 'red' : 'blue'">
         {{ message.message }}
       </ion-item>
-      <button (click)="removeMessage(message,i)"
-        color="danger"
-        [attr.class]="message.user == null ? 'right' : 'left'"
-      ><span>X</span></button>
     </div>
   </ion-list>
 </ion-content>
 
 <ion-footer>
-  <ion-input #messageField [(ngModel)]="message" type="text" placeholder="message..."></ion-input>
+  <ion-input #messageField [(ngModel)]="message" type="text" placeholder="Type a message..."></ion-input>
   <button (click)="sendMessage();messageField.setFocus()" ion-button full>Send</button>
 </ion-footer>

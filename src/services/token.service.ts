@@ -20,51 +20,29 @@ export class TokenService {
     this.events.subscribe('user:logout',() => this.stopRefreshing());
   }
 
-  // if not logged in, just send refresh token!
   public async checkLoginStatus():Promise<boolean> {
-    let loggedIn = true;
-    let minutesExpired;
-
     try {
-      const response = await this.apiService.isLoggedIn();
+      const [ token,refreshToken ] = await Promise.all([
+        SecureDataStorage.Instance().get('token'),
+        SecureDataStorage.Instance().get('refreshToken')
+      ]);
 
-      minutesExpired = response.minutesExpired;
+      if ( !refreshToken || !token ) return false;
 
-      if ( !response.isLoggedIn ) {
-        loggedIn = false;
-      }
-    } catch(e) {
-      loggedIn = false;
-    }
-
-    if ( loggedIn ) {
-      if ( minutesExpired >= 14 ) {
-        await this._getAndStoreToken();
-
-        this.stopRefreshing();
-        this.startRefreshing();
-      }
-
-      return true;
-    }
-
-    try {
-      const refreshToken = await SecureDataStorage.Instance().get('refreshToken');
-
-      if ( !refreshToken ) return false;
-
-      const { token,refreshToken:newRefreshToken } = await this.apiService.grantAccessToken({
-        refreshToken, deviceInfo:Config.getDeviceInfo()
+      const { token:newToken,refreshToken:newRefreshToken } = await this.apiService.grantAccessToken({
+        token,refreshToken,deviceInfo:Config.getDeviceInfo()
       });
 
       if ( newRefreshToken ) { 
         await SecureDataStorage.Instance().set('refreshToken',newRefreshToken);
       }
 
-      this.apiService.setToken(token);
-      this.socketService.setNewToken(token);
+      const tokenToStore = newToken ? newToken : token;
+
+      this.apiService.setToken(tokenToStore);
+      this.socketService.setNewToken(tokenToStore);
       
-      await SecureDataStorage.Instance().set('token',token);
+      await SecureDataStorage.Instance().set('token',tokenToStore);
     } catch(e) {
       return false;
     }

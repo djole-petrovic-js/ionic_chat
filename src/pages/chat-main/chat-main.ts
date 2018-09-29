@@ -13,6 +13,7 @@ import { BackgroundMode, Network } from 'ionic-native';
 import { App, LoadingController } from "ionic-angular/index";
 import { Subscription } from 'rxjs';
 import { NetworkService } from '../../services/network.service';
+import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 
 @Component({
   selector: 'page-chat-main',
@@ -80,9 +81,9 @@ export class ChatMain {
 
         BackgroundMode.enable();
 
-        this.backButtonDeregister = this.platform.registerBackButtonAction(this.onBackBtnClick.bind(this));
-        this.onResumeSubscriber = this.platform.pause.subscribe(this.onPause.bind(this));
-        this.onPauseSubscriber = this.platform.resume.subscribe(this.onResume.bind(this));
+        this.backButtonDeregister = this.platform.registerBackButtonAction(() => this.onBackBtnClick());
+        this.onPauseSubscriber = this.platform.pause.subscribe(() => this.onPause());
+        this.onResumeSubscriber = this.platform.resume.subscribe(() => this.onResume());
       }
     });
   }
@@ -164,11 +165,13 @@ export class ChatMain {
     await this.disconnectAlert.present();
   }
 
-  private async onPause() {
+  private async onPause():Promise<void> {
     this.tokenService.stopRefreshing();
   }
 
-  private async onResume() {
+  private async onResume():Promise<void> {
+    await this.platform.ready();
+
     if ( !this.networkService.hasInternetConnection() ) {
       const toast = this.toastController.create({
         duration:3000,
@@ -201,7 +204,30 @@ export class ChatMain {
     }
 
     if ( this.backBtnExitApp ) {
-      this.apiService.changeLoginStatus({ status:0 });
+      await this.platform.ready();
+
+      const loading = this.loadingController.create({
+        spinner:'bubbles',
+        content:'Deleting messages and exitting...'
+      });
+
+      await loading.present();
+
+      try {
+        await Promise.all([
+          SecureDataStorage.Instance().remove('messages'),
+          SecureDataStorage.Instance().remove('unreadMessages')
+        ]);
+      } catch(e) { }
+
+      if ( this.networkService.hasInternetConnection() ) {
+        try {
+          await this.apiService.changeLoginStatus({ status:0 });
+        } catch(e) { }
+      }
+
+      await loading.dismiss();
+
       this.platform.exitApp();
     } else {
       const toast = this.toastController.create({

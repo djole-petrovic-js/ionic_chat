@@ -37,10 +37,6 @@ export class SocketService {
     });
   }
 
-  public isConnected():boolean {
-    return this.socket.connected
-  }
-
   public async setNewToken(token:string) {
     if ( this.socket ) {
       this.socket.io.opts.query = `auth_token=${token}`;
