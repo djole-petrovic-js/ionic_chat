@@ -25,12 +25,14 @@ export class ChatMain {
   private pendingRequests;
   private unreadMessages = {};
   private backBtnExitApp:boolean = false;
+  private exittingStarted:boolean = false;
   private onResumeSubscriber:Subscription;
   private onPauseSubscriber:Subscription;
   private onConnectSubscriber:Subscription;
   private onDisconnectSubscriber:Subscription;
   private backButtonDeregister:Function;
   private disconnectAlert:Alert;
+  private socket;
 
   constructor (
     private networkService:NetworkService,
@@ -63,9 +65,26 @@ export class ChatMain {
           this.onDisconnectSubscriber.unsubscribe();
           this.backButtonDeregister();
         });
+        
+        this.onConnectSubscriber = Network.onConnect().subscribe(() => {
+          setTimeout(async() => {
+            const isConnected = await this.networkService.heartbeat();
 
-        this.onConnectSubscriber = Network.onConnect().subscribe(this.onConnect.bind(this));
-        this.onDisconnectSubscriber = Network.onDisconnect().subscribe(this.onDisconnect.bind(this));
+            if ( isConnected && !this.socketService.getSocket().connected ) {
+              this.onConnect();
+            }
+          }, 3000);
+        });
+
+        this.onDisconnectSubscriber = Network.onDisconnect().subscribe(() => {
+          setTimeout(async() => {
+            const isConnected = await this.networkService.heartbeat();
+
+            if ( !isConnected ) {
+              this.onDisconnect();
+            }
+          }, 3000);
+        });
         
         BackgroundMode.configure({
           title:'No History Chat',
@@ -106,39 +125,52 @@ export class ChatMain {
 
   private async onConnect() {
     this.zone.run(async() => {
-      if ( this.disconnectAlert ) {
-        await this.disconnectAlert.dismiss();
-      }
-  
-      if ( this._loadingOnReconnect ) {
-        await this._loadingOnReconnect.dismiss();
-      }
-  
+      const isInBackground = BackgroundMode.isActive();
+
       try {
-        this._loadingOnReconnect = this.loadingController.create({
-          spinner:'bubbles',
-          content:'Reconnecting...',
-          duration:7000
-        });
-  
-        this.socketService.getSocket().connect();
-        await this._loadingOnReconnect.present();
+        if ( this.disconnectAlert ) {
+          await this.disconnectAlert.dismiss();
+        }
+    
+        if ( this._loadingOnReconnect ) {
+          await this._loadingOnReconnect.dismiss();
+        }
+
+        if ( !isInBackground ) {
+          this._loadingOnReconnect = this.loadingController.create({
+            spinner:'bubbles',
+            content:'Reconnecting...',
+            duration:8000
+          });
+
+          await this._loadingOnReconnect.present();
+        }
+
+        const changeLoadingContent = setTimeout(() => {
+          if ( this._loadingOnReconnect ) {
+            this._loadingOnReconnect.setContent('Still reconnecting...');
+          }
+        }, 1000 * 7);
+        
         await this.platform.ready();
         await this.tokenService.checkLoginStatus();
         await this.socketService.getConnection();
         const { operations } = await this.apiService.getSocketOperations();
         await this.apiService.deleteOperations({  });
         await this.socketService.executeSocketOperations(operations);
-  
-        const toast = this.toastController.create({
-          duration:3000,
-          position:'top',
-          message:'Reconnection successful!'
-        });
-  
-        await toast.present();
+        clearInterval(changeLoadingContent);
+        
+        if ( !isInBackground ) {
+          const toast = this.toastController.create({
+            duration:3000,
+            position:'top',
+            message:'Reconnection successful!'
+          });
+    
+          await toast.present();
+        }
       } catch(e) {
-        if ( !BackgroundMode.isActive() ) {
+        if ( !isInBackground ) {
           this.errorResolverService.presentAlertError('Reconnecting Error',e.errorCode);
         }
       } finally {
@@ -153,8 +185,6 @@ export class ChatMain {
     }
 
     if ( BackgroundMode.isActive() ) return;
-
-    this.socketService.getSocket().disconnect();
 
     this.disconnectAlert = this.alertController.create({
       title:'Connection Error',
@@ -172,7 +202,9 @@ export class ChatMain {
   private async onResume():Promise<void> {
     await this.platform.ready();
 
-    if ( !this.networkService.hasInternetConnection() ) {
+    const isConnected = await this.networkService.heartbeat();
+
+    if ( !isConnected ) {
       const toast = this.toastController.create({
         duration:3000,
         position:'top',
@@ -204,6 +236,9 @@ export class ChatMain {
     }
 
     if ( this.backBtnExitApp ) {
+      if ( this.exittingStarted ) return;
+
+      this.exittingStarted = true;
       await this.platform.ready();
 
       const loading = this.loadingController.create({
@@ -302,6 +337,8 @@ export class ChatMain {
         
         await this.loadData();
         await this.socketService.getConnection();
+
+        this.socket = this.socketService.getSocket();
       } catch(err) {
         this.errorResolverService.presentAlertError('Error',err.statusCode);
       } finally {

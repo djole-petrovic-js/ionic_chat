@@ -6,7 +6,7 @@ import { Config } from '../Libs/Config';
 
 export class SecureDataStorage {
   private static _instance:SecureDataStorage;
-  private _storageName:string = 'tokensStorage';
+  private _storageName:string = Config.getConfig('USE_PRODUCTION_STORAGE') ? 'tokensStorage' : 'dev_tokensStorage';
   private platform:Platform;
   private secureStorage:SecureStorage;
   private storage:Storage

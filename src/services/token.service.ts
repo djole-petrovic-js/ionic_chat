@@ -40,7 +40,6 @@ export class TokenService {
       const tokenToStore = newToken ? newToken : token;
 
       this.apiService.setToken(tokenToStore);
-      this.socketService.setNewToken(tokenToStore);
       
       await SecureDataStorage.Instance().set('token',tokenToStore);
     } catch(e) {
@@ -69,7 +68,6 @@ export class TokenService {
     const response = await this.apiService.refreshToken();
 
     this.apiService.setToken(response.token);
-    this.socketService.setNewToken(response.token);
 
     await SecureDataStorage.Instance().set('token',response.token);
   }

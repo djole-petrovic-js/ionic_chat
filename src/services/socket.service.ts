@@ -37,12 +37,6 @@ export class SocketService {
     });
   }
 
-  public async setNewToken(token:string) {
-    if ( this.socket ) {
-      this.socket.io.opts.query = `auth_token=${token}`;
-    }
-  }
-
   private findLastLoginLoginEvent(operations) {
     for ( let i = operations.length - 1 ; i >= 0 ; i-- ) {
       if ( ['friend:login','friend:logout'].indexOf(operations[i].name) !== -1 ) {
@@ -126,10 +120,11 @@ export class SocketService {
       }
 
       if ( !this.socket ) {
-        const token = await SecureDataStorage.Instance().get('token');
+        const token = await SecureDataStorage.Instance().get('socketIoToken');
+        const uuid = Config.getDeviceInfo().uuid;
 
         this.socket = io.connect(this.SOCKET_URL,{
-          query:`auth_token=${token}`,
+          query:`id=${uuid}&auth_token=${token}`,
           reconnectionDelay: 1000,
           reconnectionDelayMax : 5000,
           reconnectionAttempts: Infinity,
@@ -140,10 +135,11 @@ export class SocketService {
 
       this.socket.on('error', async(err) => {
         if ( err.toLowerCase().includes('token expired') ) {
-          const token = await SecureDataStorage.Instance().get('token');
+          const token = await SecureDataStorage.Instance().get('socketIoToken');
+          const uuid = Config.getDeviceInfo().uuid;
 
           this.socket.disconnect();
-          this.socket.io.opts.query = `auth_token=${token}`;
+          this.socket.io.opts.query = `id=${uuid}&auth_token=${token}`;
           this.socket.connect();
         } else {
           reject(err);
@@ -160,6 +156,10 @@ export class SocketService {
             this.events.publish('notification:new-notification',notification);
 
             ack({ success:true });
+          });
+
+          this.socket.on('new_token',async(data) => {
+            await SecureDataStorage.Instance().set('socketIoToken',data.token);
           });
   
           this.socket.on('message:new-message',(message,ack) => {

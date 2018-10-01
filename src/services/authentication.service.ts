@@ -54,7 +54,8 @@ export class AuthenticationService {
 
       await Promise.all([
         SecureDataStorage.Instance().remove('token'),
-        SecureDataStorage.Instance().remove('refreshToken')
+        SecureDataStorage.Instance().remove('refreshToken'),
+        SecureDataStorage.Instance().remove('socketIoToken')
       ]);
 
       headers.append('Authorization','JWT ' + token);

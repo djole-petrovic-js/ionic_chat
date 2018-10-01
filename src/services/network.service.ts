@@ -1,18 +1,41 @@
 import { Injectable } from '@angular/core';
 import { Config } from '../Libs/Config';
 import { Network } from 'ionic-native';
+import { APIService } from './api.service';
+import { Platform } from 'ionic-angular';
 
 @Injectable()
 export class NetworkService {
-  constructor() { }
+  constructor(
+    private apiService:APIService,
+    private platform:Platform
+  ) { }
 
-  public hasInternetConnection() {
+  public hasInternetConnection():boolean {
     if ( !Config.getConfig('IS_PRODUCTION') ) return true;
 
     if ( Network.type === "unknown" || Network.type === "none" || Network.type == undefined ) {
       return false;
     } else {
       return true;
+    }
+  }
+
+  public async heartbeat():Promise<boolean> {
+    try {
+      await this.platform.ready();
+
+      if ( this.hasInternetConnection() ) {
+        return true;
+      }
+    } catch(e) { }
+
+    try {
+      await this.apiService.heartbeat();
+
+      return true;
+    } catch(e) {
+      return false;
     }
   }
 }

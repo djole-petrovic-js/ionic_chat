@@ -6,7 +6,10 @@ export class Config {
     API_URL:'http://192.168.0.104:3000/',
     // API_URL:'https://nohistorychat.com/',
     ENV:'production',
-    IS_PRODUCTION:false
+    // use secure storage, instead of local storage
+    IS_PRODUCTION:true,
+    // use diferent name for storage if developing
+    USE_PRODUCTION_STORAGE:false
   }
 
   private static _defaultInfo = {

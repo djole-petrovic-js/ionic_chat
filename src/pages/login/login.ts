@@ -200,11 +200,12 @@ export class LogIn {
   private async _onSuccessfullLogin(response) {
     if ( response.success ) {
       this.apiService.setToken(response.token);
-      
+
       try {
         await Promise.all([
           SecureDataStorage.Instance().set('token',response.token),
-          SecureDataStorage.Instance().set('refreshToken',response.refreshToken)
+          SecureDataStorage.Instance().set('refreshToken',response.refreshToken),
+          SecureDataStorage.Instance().set('socketIoToken',response.socketIoToken)
         ]);
 
         const { operations } = await this.apiService.getSocketOperations();

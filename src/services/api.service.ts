@@ -31,6 +31,7 @@ export class APIService {
   private getSocketOperationsURL:string = this.mainURL + 'api/users/get_socket_operations';
   private deleteOperationsURL:string = this.mainURL + 'api/users/delete_operations';
   private changeLoginStatusURL:string = this.mainURL + 'api/login/change_login_status';
+  private heartbeatURL:string = this.mainURL + 'api/login/heartbeat';
 
   constructor(
     private http:Http,
@@ -47,6 +48,16 @@ export class APIService {
     headers.append('Authorization','JWT ' + this.token);
 
     return headers;
+  }
+
+  public async heartbeat() {
+    try {
+      const response = await this.http.get(this.heartbeatURL).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
   }
 
   public async setBinarySettings(body) {
