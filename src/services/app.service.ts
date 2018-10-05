@@ -7,7 +7,7 @@ import { NetworkService } from './network.service';
 export class AppService {
   private _appCloseTimeout;
   // 45 minutes
-  private _closingTimeMS = 1000 * 60 * 45;
+  private _closingTimeMS = 1000 * 60 * 50;
 
   constructor(
     private app:App,
