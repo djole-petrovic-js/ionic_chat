@@ -1,6 +1,5 @@
 import { Component } from '@angular/core';
 import { NavController, LoadingController,AlertController } from 'ionic-angular';
-
 import { AuthenticationService } from '../../services/authentication.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
 import { Form } from '../../Libs/Form';

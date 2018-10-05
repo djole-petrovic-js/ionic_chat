@@ -19,16 +19,30 @@ export class MessagesService {
   private nav:ViewController;
   private tempMessages = [];
 
+  private numberOfSocketMessages = 0;
+
+  public setNumberOfSocketMessages(n:number):void {
+    this.numberOfSocketMessages = n;
+  }
+
+  public shouldAutoScroll():boolean {
+    if ( this.numberOfSocketMessages > 0 ) {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   constructor(
     private events:Events,
     private apiService:APIService,
     private appService:AppService,
     private friendsService:FriendsService,
   ) {
-    this.events.subscribe('start:chatting',this.startChatting.bind(this));
-    this.events.subscribe('message:send',this.messageSend.bind(this));
-    this.events.subscribe('message:new-message',this.newMessage.bind(this));
-    this.events.subscribe('user:logout',this.userLogOut.bind(this));
+    this.events.subscribe('start:chatting',(data) => this.startChatting(data));
+    this.events.subscribe('message:send',(data) => this.messageSend(data));
+    this.events.subscribe('message:new-message',(data) => this.newMessage(data));
+    this.events.subscribe('user:logout',() => this.userLogOut());
   }
 
   private async startChatting({ username,id }) {
@@ -105,6 +119,10 @@ export class MessagesService {
       user:data.senderUsername,
       message:data.message
     });
+
+    if ( this.numberOfSocketMessages !== 0 ) {
+      this.numberOfSocketMessages--;
+    }
   }
 
   public async getInitialMessages() {
@@ -180,9 +198,7 @@ export class MessagesService {
   }
 
   public setTempMessages(operations) {
-    this.tempMessages = operations.filter(x => {
-      return x.name === 'message:new-message';
-    });
+    this.tempMessages = operations.filter(x => x.name === 'message:new-message');
   }
 
   public refreshInitialMessages():void {
@@ -190,15 +206,20 @@ export class MessagesService {
     this.getMessages();
   }
 
+  public async removeAllMessages():Promise<void> {
+    try {
+      await Promise.all([
+        SecureDataStorage.Instance().remove('messages'),
+        SecureDataStorage.Instance().remove('unreadMessages')
+      ]);
+    } catch(e) { }
+  }
+
   private async userLogOut() {
     this.allMessages = {};
     this.unreadMessages = {};
     this.refreshInitialMessages();
-
-    await Promise.all([
-      SecureDataStorage.Instance().remove('messages'),
-      SecureDataStorage.Instance().remove('unreadMessages')
-    ]);
+    await this.removeAllMessages();
   }
 
   private _storeInitialMessages(messages):void {

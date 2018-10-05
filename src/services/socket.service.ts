@@ -9,6 +9,7 @@ import { BackgroundMode } from 'ionic-native';
 import { APIService } from '../services/api.service';
 import { ChatMessages } from '../pages/chatmessages/chatmessages';
 import { AppService } from './app.service';
+import { MessagesService } from './messages.service';
 
 @Injectable()
 export class SocketService {
@@ -27,7 +28,8 @@ export class SocketService {
     private friendsService:FriendsService,
     private toastController:ToastController,
     private apiService:APIService,
-    private appService:AppService
+    private appService:AppService,
+    private messagesService:MessagesService
   ) {
     this.events.subscribe('user:logout',() => {
       this.subscribeToEvents = true;
@@ -75,6 +77,18 @@ export class SocketService {
             return true;
           });
         }
+
+        let numberOfMessages:number = operations.reduce((total,item) => {
+          if ( item.name === 'message:new-message') {
+            total++;
+          }
+
+          return total;
+        },0);
+
+        this.messagesService.setNumberOfSocketMessages(numberOfMessages);
+
+        await this.apiService.deleteOperations({  });
 
         for ( let { name,data } of operations ) {
           const parsedData = JSON.parse(data);
@@ -125,6 +139,7 @@ export class SocketService {
 
         this.socket = io.connect(this.SOCKET_URL,{
           query:`id=${uuid}&auth_token=${token}`,
+          // reconnection:false,
           reconnectionDelay: 1000,
           reconnectionDelayMax : 5000,
           reconnectionAttempts: Infinity,
@@ -133,22 +148,24 @@ export class SocketService {
         });
       }
 
-      this.socket.on('error', async(err) => {
-        if ( err.toLowerCase().includes('token expired') ) {
-          const token = await SecureDataStorage.Instance().get('socketIoToken');
-          const uuid = Config.getDeviceInfo().uuid;
-
-          this.socket.disconnect();
-          this.socket.io.opts.query = `id=${uuid}&auth_token=${token}`;
-          this.socket.connect();
-        } else {
-          reject(err);
-        }
-      });
-
-      this.socket.on('success',() => {
-        resolve(this.socket);
-      });
+      if ( this.subscribeToEvents ) {
+        this.socket.on('error', async(err) => {
+          if ( typeof err === 'string' && err.toLowerCase().includes('token expired') ) {
+            const token = await SecureDataStorage.Instance().get('socketIoToken');
+            const uuid = Config.getDeviceInfo().uuid;
+  
+            this.socket.disconnect();
+            this.socket.io.opts.query = `id=${uuid}&auth_token=${token}`;
+            this.socket.connect();
+          } else {
+            reject(err);
+          }
+        });
+  
+        this.socket.on('success',() => {
+          resolve(this.socket);
+        });
+      }
 
       this.socket.on('connect',async() => {
         if ( this.subscribeToEvents ) {
@@ -219,14 +236,14 @@ export class SocketService {
             this.socket.emit('new:message',message);
           });
 
+          this.socket.on('disconnect',() => {
+            this.shouldLoadOperations = true;
+          });
+
           this.subscribeToEvents = false;
         }
 
         resolve(this.socket);
-      });
-
-      this.socket.on('disconnect',() => {
-        this.shouldLoadOperations = true;
       });
     });
   }

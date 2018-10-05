@@ -3,7 +3,6 @@ import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
 import { Config } from '../Libs/Config';
 import { SecureDataStorage } from '../Libs/SecureDataStorage';
-import { SocketService } from './socket.service';
 
 // token lasts for 25 minutes, refresh at every 10 minutes
 @Injectable()
@@ -13,11 +12,20 @@ export class TokenService {
   private _refreshingStarted:boolean = false;
 
   constructor(
-    private socketService:SocketService,
     private apiService:APIService,
     private events:Events
   ) {
     this.events.subscribe('user:logout',() => this.stopRefreshing());
+  }
+
+  public async setFCMToken(token:string) {
+    try {
+      const response = await this.apiService.setFCMToken({ token });
+
+      return response;
+    } catch(e) {
+      throw e;
+    }
   }
 
   public async checkLoginStatus():Promise<boolean> {

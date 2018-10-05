@@ -3,6 +3,7 @@ import { MessagesService } from '../../services/messages.service';
 import { Events,AlertController,Content, ToastController, Keyboard as IonicKeyboard } from 'ionic-angular';
 import { Keyboard } from '@ionic-native/keyboard';
 import { Subscription } from 'rxjs';
+import { BackgroundMode } from 'ionic-native';
 
 @Component({
   selector: 'page-chatmessages',
@@ -32,6 +33,9 @@ export class ChatMessages {
 
   ionViewWillEnter() {
     this.user = this.messagesService.getCurrentChattingUserObj();
+    this.messages = [];
+    this.messages = this.messagesService.getMessages();
+    setTimeout(() => { this.content.scrollToBottom(0); },50);
     
     this.onKeyboardShowSubscriber = this.keyboardNative.onKeyboardShow().subscribe(() => this.scroll());
 
@@ -48,11 +52,8 @@ export class ChatMessages {
       }
     });
 
-    this.messages = [];
     this.events.subscribe('message:message-recieved',this.messageReceived.bind(this));
     this.events.subscribe('message:not-in-friends-list',this.notInFriendsList.bind(this));
-    this.messages = this.messagesService.getMessages();
-    setTimeout(() => { this.content.scrollToBottom(0); },50);
   }
 
   ionViewWillLeave() {
@@ -76,22 +77,32 @@ export class ChatMessages {
     alert.present();
   }
 
-  private messageReceived(message) {
+  private async messageReceived(message) {
     if ( message.user !== this.user.username ) {
       if ( this.keyboardIonic.isOpen() ) {
         this.newMessages = true;
       } else {
-        const toast = this.toastController.create({
-          duration:3000,
-          position:'top',
-          message:`${message.user}: ${message.message}`
-        });
-  
-        toast.present();
+        if ( !BackgroundMode.isActive() ) {
+          const toast = this.toastController.create({
+            duration:3000,
+            position:'top',
+            message:`${message.user}: ${message.message}`
+          });
+    
+          toast.present();
+        }
       }
 
       return;
     }
+
+    if ( this.messagesService.shouldAutoScroll() ) {
+      this.messages = this.messagesService.getMessages();
+      this.scroll();
+
+      return;
+    }
+
     const dimensions = this.content.getContentDimensions();
     // making sure scroll is disabled while pushing new message into the page!
     this.scrollable = 'no-scroll';
@@ -102,16 +113,18 @@ export class ChatMessages {
       this.scroll();
       this.messageField.setFocus();
     } else {
-      if ( (dimensions.scrollTop + dimensions.contentHeight) >= dimensions.scrollHeight ) {
+      if ( (dimensions.scrollTop + dimensions.contentHeight) >= (dimensions.scrollHeight - 100) ) {
         this.scroll();
       } else {
-        const toast = this.toastController.create({
-          duration:3000,
-          position:'top',
-          message:`${message.user}: ${message.message}`
-        });
-  
-        toast.present();
+        if ( !BackgroundMode.isActive() ) {
+          const toast = this.toastController.create({
+            duration:3000,
+            position:'top',
+            message:`${message.user}: ${message.message}`
+          });
+    
+          toast.present();
+        }
       }
     }
   }

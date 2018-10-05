@@ -64,6 +64,7 @@ export class LogIn {
     });
 
     await loading.present();
+    await SecureDataStorage.Instance().initStorage();
 
     const isLoggedIn = await this.tokenService.checkLoginStatus();
 

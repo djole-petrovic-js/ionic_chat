@@ -3,13 +3,15 @@ import { SecureDataStorage } from '../Libs/SecureDataStorage';
 
 export class Config {
   private static _config = {
-    API_URL:'http://192.168.0.104:3000/',
-    // API_URL:'https://nohistorychat.com/',
+    // API_URL:'http://192.168.0.104:3000/',
+    API_URL:'https://nohistorychat.com/',
     ENV:'production',
     // use secure storage, instead of local storage
     IS_PRODUCTION:true,
     // use diferent name for storage if developing
-    USE_PRODUCTION_STORAGE:false
+    USE_PRODUCTION_STORAGE:true,
+    // use dummy data for device information if developing
+    USE_REAL_DEVICE_INFO:true
   }
 
   private static _defaultInfo = {
@@ -60,6 +62,14 @@ export class Config {
   }
 
   public static getDeviceInfo() {
+    if ( !Config.getAllConfig().USE_REAL_DEVICE_INFO ) {
+      return {
+        uuid:'abc123',
+        serial:'qwer1234',
+        manufacturer:'samsung'
+      }
+    }
+
     return {
       uuid:Device.uuid,
       serial:Device.serial,

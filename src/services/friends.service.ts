@@ -53,6 +53,10 @@ export class FriendsService {
     return this.friends.find(x => x.id_user === id_user);
   }
 
+  public getFriendByUsername(username:string) {
+    return this.friends.find(x => x.username === username);
+  }
+
   public addToPendingRequest(friend) {
     this.pendingRequests.push(friend);
   }

@@ -12,6 +12,9 @@ import { HttpModule } from '@angular/http'
 import { PincodeInputModule } from  'ionic2-pincode-input';
 import { ServiceLocator } from '../Libs/Injector';
 import { Keyboard } from '@ionic-native/keyboard';
+import { FCM } from '@ionic-native/fcm';
+import { LocalNotifications } from '@ionic-native/local-notifications';
+import { Vibration } from '@ionic-native/vibration';
 
 import { ChatMain } from '../pages/chat-main/chat-main';
 import { LogIn } from '../pages/login/login';
@@ -70,6 +73,9 @@ import { NetworkService } from '../services/network.service';
     About
   ],
   providers: [
+    Vibration,
+    LocalNotifications,
+    FCM,
     AppService,
     Keyboard,
     BackgroundMode,

@@ -35,6 +35,10 @@ export class SecureDataStorage {
     }
   }
 
+  public async initStorage() {
+    await this._init();
+  }
+
   private async _init() {
     await this.platform.ready();
 

@@ -1,5 +1,5 @@
 import { Component, NgZone } from '@angular/core';
-import { Events, AlertController, Alert } from 'ionic-angular';
+import { Events, AlertController, Alert,NavController } from 'ionic-angular';
 import { APIService } from '../../services/api.service';
 import { NotificationsService } from '../../services/notifications.service';
 import { MessagesService } from '../../services/messages.service';
@@ -13,7 +13,11 @@ import { BackgroundMode, Network } from 'ionic-native';
 import { App, LoadingController } from "ionic-angular/index";
 import { Subscription } from 'rxjs';
 import { NetworkService } from '../../services/network.service';
-import { SecureDataStorage } from '../../Libs/SecureDataStorage';
+import { FCM } from '@ionic-native/fcm';
+import { LocalNotifications } from '@ionic-native/local-notifications';
+import { AppService } from '../../services/app.service';
+import { ChatMessages } from '../chatmessages/chatmessages';
+import { Vibration } from '@ionic-native/vibration';
 
 @Component({
   selector: 'page-chat-main',
@@ -32,7 +36,6 @@ export class ChatMain {
   private onDisconnectSubscriber:Subscription;
   private backButtonDeregister:Function;
   private disconnectAlert:Alert;
-  private socket;
 
   constructor (
     private networkService:NetworkService,
@@ -50,7 +53,12 @@ export class ChatMain {
     private app:App,
     private toastController:ToastController,
     private loadingController:LoadingController,
-    private zone:NgZone
+    private zone:NgZone,
+    private fcm:FCM,
+    private localNotifications:LocalNotifications,
+    private appService:AppService,
+    private nav:NavController,
+    private vibration:Vibration
   ) {
     this.tokenService.startRefreshing();
 
@@ -65,16 +73,10 @@ export class ChatMain {
           this.onDisconnectSubscriber.unsubscribe();
           this.backButtonDeregister();
         });
-        
-        this.onConnectSubscriber = Network.onConnect().subscribe(() => {
-          setTimeout(async() => {
-            const isConnected = await this.networkService.heartbeat();
 
-            if ( isConnected && !this.socketService.getSocket().connected ) {
-              this.onConnect();
-            }
-          }, 3000);
-        });
+        this.initFCM();
+
+        this.onConnectSubscriber = Network.onConnect().subscribe(this.onConnect.bind(this));
 
         this.onDisconnectSubscriber = Network.onDisconnect().subscribe(() => {
           setTimeout(async() => {
@@ -107,18 +109,84 @@ export class ChatMain {
     });
   }
 
-  private subscribeEvents() {
-    this.events.subscribe('message:stored-unread-message',this.storedUnreadMessage.bind(this));
-    this.events.subscribe('friend_you_removed',this.friendYouRemoved.bind(this));
-    this.events.subscribe('friend:login',this.friendLogIn.bind(this));
-    this.events.subscribe('friend:logout',this.friendLogOut.bind(this));
+  private async initFCM() {
+    try {
+      const hasPermission:boolean = await this.localNotifications.hasPermission();
+
+      if ( hasPermission ) {
+        this.configureNotifications();
+      } else {
+        const hasPermitted:boolean = await this.localNotifications.requestPermission();
+
+        if ( hasPermitted ) {
+          this.configureNotifications();
+        } else {
+          this.alertController.create({
+            title:'Notifications',
+            subTitle:'You will not recieve notifications on new messages.',
+            buttons:['OK']
+          }).present();
+        }
+      }
+    } catch(e) {
+      this.alertController.create({
+        title:'Notifications Error',
+        subTitle:'Error occured while trying to configure notifications. Try to restart the application.',
+        buttons:['OK']
+      }).present();
+    }
   }
 
-  private unSubscribeEvents() {
-    this.events.unsubscribe('friend:login');
-    this.events.unsubscribe('friend:logout');
-    this.events.unsubscribe('friend_you_removed');
-    this.events.unsubscribe('message:stored-unread-message');
+  private async configureNotifications() {
+    const token = await this.fcm.getToken();
+
+    await this.tokenService.setFCMToken(token)
+
+    this.fcm.onTokenRefresh().subscribe(async(token) => {
+      await this.tokenService.setFCMToken(token)
+    });
+
+    this.localNotifications.on('click').subscribe(async(notification) => {
+      await this.platform.ready();
+
+      this.events.subscribe('resumed',() => {
+        this.switchPagesOnResumeIfMessage(notification);
+        this.events.unsubscribe('resumed');
+      });
+    });
+
+    this.localNotifications.on('trigger').subscribe(() => {
+      this.vibration.vibrate(500);
+    });
+
+    this.fcm.onNotification().subscribe(data => {
+      if ( BackgroundMode.isActive() ) {
+        const friend = this.friendsService.getFriendByUsername(data.username);
+
+        this.localNotifications.schedule({
+          id:friend.id_user,
+          title:data.username,
+          text:data.message,
+          smallIcon:'res://icon',
+          icon:'file://assets/img/icon.png',
+          vibrate:true,
+        });
+      }
+    });
+  }
+
+  private switchPagesOnResumeIfMessage(notification) {
+    if ( !(
+      this.appService.getActivePage().component === ChatMessages &&
+      this.messagesService.getCurrentChattingUserObj().username === notification.title
+    ) ) {
+      this.nav.setRoot(ChatMain).then(() => {
+        this.events.publish('start:chatting',{
+          username:notification.title,
+          id:notification.id
+        });
+      });
+    }
   }
 
   private _loadingOnReconnect;
@@ -192,15 +260,19 @@ export class ChatMain {
       buttons:['OK']
     });
 
-    await this.disconnectAlert.present();
+    this.disconnectAlert.present();
   }
 
   private async onPause():Promise<void> {
     this.tokenService.stopRefreshing();
+    this.appService.startClosingTimeout();
   }
 
   private async onResume():Promise<void> {
     await this.platform.ready();
+
+    this.appService.stopClosingTimeout();
+    this.events.publish('resumed');
 
     const isConnected = await this.networkService.heartbeat();
 
@@ -213,6 +285,8 @@ export class ChatMain {
   
       return toast.present();
     }
+
+    this.localNotifications.clearAll();
 
     try {
       await this.tokenService.checkLoginStatus();
@@ -247,13 +321,7 @@ export class ChatMain {
       });
 
       await loading.present();
-
-      try {
-        await Promise.all([
-          SecureDataStorage.Instance().remove('messages'),
-          SecureDataStorage.Instance().remove('unreadMessages')
-        ]);
-      } catch(e) { }
+      await this.messagesService.removeAllMessages();
 
       if ( this.networkService.hasInternetConnection() ) {
         try {
@@ -277,30 +345,6 @@ export class ChatMain {
     }
   }
 
-  private storedUnreadMessage() {
-    this.unreadMessages = this.messagesService.getUnreadMessages();
-  }
-
-  private friendYouRemoved(data) {
-    const friendIndex = this.friends.findIndex(x => x.id_user === data.IdUserRemoving);
-
-    if ( friendIndex !== -1 ) {
-      this.friends.splice(friendIndex,1);
-    }
-  }
-
-  private friendLogIn(data) {
-    try {
-      this.friends.find(x => x.id_user === data.friendID).online = 1;
-    } catch(e) { }
-  }
-
-  private friendLogOut(data) {
-    try {
-      this.friends.find(x => x.id_user === data.friendID).online = 0;
-    } catch(e) { }
-  }
-
   private async loadData() {
     try {
       [this.friends,this.notifications,this.pendingRequests] = await Promise.all([
@@ -318,8 +362,6 @@ export class ChatMain {
   }
 
   private async ionViewWillEnter() {
-    this.subscribeEvents();
-
     if ( this.networkService.hasInternetConnection() ) {
       let loading;
 
@@ -337,18 +379,12 @@ export class ChatMain {
         
         await this.loadData();
         await this.socketService.getConnection();
-
-        this.socket = this.socketService.getSocket();
       } catch(err) {
         this.errorResolverService.presentAlertError('Error',err.statusCode);
       } finally {
         if ( loading ) { loading.dismiss(); }
       }
     }
-  }
-
-  private async ionViewWillLeave() {
-    this.unSubscribeEvents();
   }
 
   private startChatting(userOptions):void {
