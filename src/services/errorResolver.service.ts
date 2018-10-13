@@ -14,6 +14,7 @@ export class ErrorResolverService {
     'REGISTER_DATA_NOT_VALID':'Please enter correct data',
     'REGISTER_USERNAME_EXISTS':'Username already exists.',
     'REGISTER_EMAIL_EXISTS':'Email already exists',
+    'REGISTER_EMAIL_BANNED':'You can not use this email to create your account. It has been banned. Please use another email.',
     'EMAIL_USERNAME_LOOKUP_FAILED':'',
     'REGISTER_EMAIL_SEND_ERROR':`Your account is created, but we were unable to send you confirmation email.
     Please request another email to activate your account.`,

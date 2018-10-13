@@ -27,7 +27,11 @@ export class SecureDataStorage {
 
   public async checkIfSSAvailable() {
     try {
-      await new SecureStorage();
+      await this.platform.ready();
+
+      if ( Config.getConfig('IS_PRODUCTION') ) {
+        await this.secureStorage.create(this._storageName)
+      }
 
       return true;
     } catch(e) {

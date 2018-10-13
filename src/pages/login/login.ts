@@ -63,37 +63,53 @@ export class LogIn {
       dismissOnPageChange:true 
     });
 
-    await loading.present();
-    await SecureDataStorage.Instance().initStorage();
+    try {
+      await loading.present();
+      await SecureDataStorage.Instance().initStorage();
 
-    const isLoggedIn = await this.tokenService.checkLoginStatus();
+      const isLoggedIn = await this.tokenService.checkLoginStatus();
 
-    if ( isLoggedIn ) {
-      this.settingsService.toggleMainLoadingScreen();
-      // get all operations, socket service will execute just the ones
-      // that are new messages, not friend request notifications etc.
-      const [ { operations } ] =  await Promise.all([
-        this.apiService.getSocketOperations(),
-        this.apiService.changeLoginStatus({ status:1 }),
-      ]);
+      if ( isLoggedIn ) {
+        this.settingsService.toggleMainLoadingScreen();
+        // get all operations, socket service will execute just the ones
+        // that are new messages, not friend request notifications etc.
+        const [ { operations } ] =  await Promise.all([
+          this.apiService.getSocketOperations(),
+          this.apiService.changeLoginStatus({ status:1 }),
+        ]);
 
-      this.messagesService.setTempMessages(operations);
+        this.messagesService.setTempMessages(operations);
 
-      await this.apiService.deleteOperations({  });
-      await loading.dismiss();
+        await this.apiService.deleteOperations({  });
+        try { await loading.dismiss(); } catch(e) { }
 
-      return this.events.publish('user:loggedin');
-    }
+        return this.events.publish('user:loggedin');
+      }
+      
+      try { await loading.dismiss(); } catch(e) { }
 
-    await loading.dismiss();
+      const userInfo = await Config.getInfo();
 
-    const userInfo = await Config.getInfo();
+      this.userInfo = userInfo.info;
+      this.switchLoginForms = !!userInfo.default;
 
-    this.userInfo = userInfo.info;
-    this.switchLoginForms = !!userInfo.default;
+      if ( this.userInfo.pin_login_enabled ) {
+        await this.showPinForm();
+      }
+    } catch(e) {
+      const userInfo = await Config.getInfo();
 
-    if ( this.userInfo.pin_login_enabled ) {
-      await this.showPinForm();
+      this.userInfo = userInfo.info;
+      this.switchLoginForms = !!userInfo.default;
+
+      this.alertController.create({
+        title:'Notification',
+        subTitle:`Application failed to initialize. Please make sure you have internet connection. Also, make sure you
+          have pattern or PIN enabled on your device, application won't work without it.`,
+        buttons:['OK']
+      }).present();
+    } finally {
+      try { await loading.dismiss(); } catch(e) { }
     }
   }
 

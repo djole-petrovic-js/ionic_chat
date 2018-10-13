@@ -139,7 +139,6 @@ export class SocketService {
 
         this.socket = io.connect(this.SOCKET_URL,{
           query:`id=${uuid}&auth_token=${token}`,
-          // reconnection:false,
           reconnectionDelay: 1000,
           reconnectionDelayMax : 5000,
           reconnectionAttempts: Infinity,

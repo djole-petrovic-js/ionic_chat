@@ -1,5 +1,5 @@
 import { Component, NgZone } from '@angular/core';
-import { Events, AlertController, Alert,NavController } from 'ionic-angular';
+import { Events, AlertController, Alert } from 'ionic-angular';
 import { APIService } from '../../services/api.service';
 import { NotificationsService } from '../../services/notifications.service';
 import { MessagesService } from '../../services/messages.service';
@@ -14,10 +14,8 @@ import { App, LoadingController } from "ionic-angular/index";
 import { Subscription } from 'rxjs';
 import { NetworkService } from '../../services/network.service';
 import { FCM } from '@ionic-native/fcm';
-import { LocalNotifications } from '@ionic-native/local-notifications';
 import { AppService } from '../../services/app.service';
-import { ChatMessages } from '../chatmessages/chatmessages';
-import { Vibration } from '@ionic-native/vibration';
+import { Config } from '../../Libs/Config';
 
 @Component({
   selector: 'page-chat-main',
@@ -55,10 +53,7 @@ export class ChatMain {
     private loadingController:LoadingController,
     private zone:NgZone,
     private fcm:FCM,
-    private localNotifications:LocalNotifications,
     private appService:AppService,
-    private nav:NavController,
-    private vibration:Vibration
   ) {
     this.tokenService.startRefreshing();
 
@@ -75,7 +70,7 @@ export class ChatMain {
         });
 
         this.initFCM();
-
+        this.appService.setMessagesServiceObj(this.messagesService);
         this.onConnectSubscriber = Network.onConnect().subscribe(this.onConnect.bind(this));
 
         this.onDisconnectSubscriber = Network.onDisconnect().subscribe(() => {
@@ -110,30 +105,8 @@ export class ChatMain {
   }
 
   private async initFCM() {
-    try {
-      const hasPermission:boolean = await this.localNotifications.hasPermission();
-
-      if ( hasPermission ) {
-        this.configureNotifications();
-      } else {
-        const hasPermitted:boolean = await this.localNotifications.requestPermission();
-
-        if ( hasPermitted ) {
-          this.configureNotifications();
-        } else {
-          this.alertController.create({
-            title:'Notifications',
-            subTitle:'You will not recieve notifications on new messages.',
-            buttons:['OK']
-          }).present();
-        }
-      }
-    } catch(e) {
-      this.alertController.create({
-        title:'Notifications Error',
-        subTitle:'Error occured while trying to configure notifications. Try to restart the application.',
-        buttons:['OK']
-      }).present();
+    if ( Config.getConfig('IS_PRODUCTION') ) {
+      this.configureNotifications();
     }
   }
 
@@ -145,48 +118,6 @@ export class ChatMain {
     this.fcm.onTokenRefresh().subscribe(async(token) => {
       await this.tokenService.setFCMToken(token)
     });
-
-    this.localNotifications.on('click').subscribe(async(notification) => {
-      await this.platform.ready();
-
-      this.events.subscribe('resumed',() => {
-        this.switchPagesOnResumeIfMessage(notification);
-        this.events.unsubscribe('resumed');
-      });
-    });
-
-    this.localNotifications.on('trigger').subscribe(() => {
-      this.vibration.vibrate(500);
-    });
-
-    this.fcm.onNotification().subscribe(data => {
-      if ( BackgroundMode.isActive() ) {
-        const friend = this.friendsService.getFriendByUsername(data.username);
-
-        this.localNotifications.schedule({
-          id:friend.id_user,
-          title:data.username,
-          text:data.message,
-          smallIcon:'res://icon',
-          icon:'file://assets/img/icon.png',
-          vibrate:true,
-        });
-      }
-    });
-  }
-
-  private switchPagesOnResumeIfMessage(notification) {
-    if ( !(
-      this.appService.getActivePage().component === ChatMessages &&
-      this.messagesService.getCurrentChattingUserObj().username === notification.title
-    ) ) {
-      this.nav.setRoot(ChatMain).then(() => {
-        this.events.publish('start:chatting',{
-          username:notification.title,
-          id:notification.id
-        });
-      });
-    }
   }
 
   private _loadingOnReconnect;
@@ -266,13 +197,13 @@ export class ChatMain {
   private async onPause():Promise<void> {
     this.tokenService.stopRefreshing();
     this.appService.startClosingTimeout();
+    this.messagesService.saveMessages();
   }
 
   private async onResume():Promise<void> {
     await this.platform.ready();
 
     this.appService.stopClosingTimeout();
-    this.events.publish('resumed');
 
     const isConnected = await this.networkService.heartbeat();
 
@@ -285,8 +216,6 @@ export class ChatMain {
   
       return toast.present();
     }
-
-    this.localNotifications.clearAll();
 
     try {
       await this.tokenService.checkLoginStatus();
@@ -375,10 +304,9 @@ export class ChatMain {
           });
           
           await loading.present();
+          await this.loadData();
+          await this.socketService.getConnection();
         }
-        
-        await this.loadData();
-        await this.socketService.getConnection();
       } catch(err) {
         this.errorResolverService.presentAlertError('Error',err.statusCode);
       } finally {

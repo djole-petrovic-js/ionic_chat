@@ -17,19 +17,20 @@ import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 })
 export class Settings {
   private friends;
-
   // ion toggle change unnecessarily triggers change event
   // checks if first time called, if so just return
   private calledTogglingMethods = {
     toggleOfflineMessages:0,
     toggleUniqueDevice:0,
-    togglePinAuth:0
+    togglePinAuth:0,
+    togglePush:0
   };
 
   private user;
-  private isToggled = false;
-  private isUniqueDeviceToggled = false;
-  private isPinAuthToggled = false;
+  private isToggled:boolean = false;
+  private isUniqueDeviceToggled:boolean = false;
+  private isPinAuthToggled:boolean = false;
+  private isPushEnabled:boolean = false;
 
   constructor(
     private friendsService:FriendsService,
@@ -52,6 +53,7 @@ export class Settings {
       this.isToggled = this.user.allow_offline_messages;
       this.isUniqueDeviceToggled = this.user.unique_device;
       this.isPinAuthToggled = this.user.pin_login_enabled;
+      this.isPushEnabled = this.user.push_notifications_enabled;
 
       await Config.storeInfo({
         pin_login_enabled:this.user.pin_login_enabled
@@ -60,19 +62,62 @@ export class Settings {
       // if it is false, it wont trigger ionchange
       // so call methods right away!
       if ( !this.user.allow_offline_messages ) this.calledTogglingMethods.toggleOfflineMessages = 1;
-
-      if ( !this.user.unique_device ) {
-        this.calledTogglingMethods.toggleUniqueDevice = 1;
-      }
-
-      if ( !this.user.pin_login_enabled ) {
-        this.calledTogglingMethods.togglePinAuth = 1;
-      }
+      if ( !this.user.unique_device ) this.calledTogglingMethods.toggleUniqueDevice = 1;
+      if ( !this.user.pin_login_enabled ) this.calledTogglingMethods.togglePinAuth = 1;
+      if ( !this.user.push_notifications_enabled ) this.calledTogglingMethods.togglePush = 1;
     } catch(e) {
       this.errorResolverService.presentAlertError('Friends List Error',e.errorCode);
     }
   }
+
+  private displayPushInfo():void {
+    this.alertController.create({
+      title:'Push Notifications',
+      message:`Push notifications are essential for you to be notified about incomming messages. You can choose to
+       turn this feature off. If you do, you need to enter the app in order to see new messages.`,
+      buttons:['OK']
+    }).present();
+  }
   
+  private async togglePush() {
+    if ( this.calledTogglingMethods.togglePush < 1 ) {
+      this.calledTogglingMethods.togglePush++;
+
+      return;
+    }
+
+    const pushEnabledValue = this.isPushEnabled ? 1 : 0;
+
+    const loading = this.loadingController.create({
+      spinner:'bubbles',
+      content:'Changing...'
+    });
+
+    await loading.present();
+
+    try {
+      await this.apiService.setBinarySettings({
+        setting:'push_notifications_enabled',
+        value:pushEnabledValue
+      });
+
+      this.alertController.create({
+        title:'Success',
+        message:'Successfully changed Push Notification Enabled mode!',
+        buttons:['OK']
+      }).present();
+
+      this.settingsService.setSetting(
+        'push_notifications_enabled',
+        pushEnabledValue
+      );
+    } catch(e) {
+      this.errorResolverService.presentAlertError('Error',e.errorCode);
+    } finally {
+      loading.dismiss();
+    }
+  }
+
   private async togglePinAuth() {
     if ( this.calledTogglingMethods.togglePinAuth < 1 ) {
       this.calledTogglingMethods.togglePinAuth++

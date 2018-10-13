@@ -7,6 +7,7 @@ import { LogIn } from '../login/login';
 import { Config } from '../../Libs/Config';
 import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 import { NetworkService } from '../../services/network.service';
+import { Vibration } from '@ionic-native/vibration';
 
 @Component({
   selector: 'page-register',
@@ -36,7 +37,8 @@ export class Register {
     private errorResolverService:ErrorResolverService,
     private loadingController:LoadingController,
     private alertController:AlertController,
-    private networkService:NetworkService
+    private networkService:NetworkService,
+    private vibration:Vibration
   ) { }
 
   private async ionViewWillEnter() {
@@ -56,7 +58,8 @@ export class Register {
       if ( !secureStorageAvailable ) {
         this.alertController.create({
           title:'Security Error.',
-          message:`Please enable screen lock on your device. This application will not work without it.`
+          message:`Please enable screen lock on your device. This application will not work without it.`,
+          buttons:['OK']
         }).present();
       }
     }
@@ -116,6 +119,8 @@ export class Register {
 
   private async register() {
     if ( !this.networkService.hasInternetConnection() ){
+      this.vibration.vibrate(300);
+
       return await this.alertController.create({
         title:'Connection Error',
         message:'No internet connection.',
@@ -133,11 +138,14 @@ export class Register {
 
       if ( !form.isValid() ) {
         this.errors = form.errorMessages();
+        this.vibration.vibrate(300);
 
         return;
       }
 
       if ( !this.isAgreeToTermsChecked ) {
+        this.vibration.vibrate(300);
+
         return await this.alertController.create({
           title:'Terms of use.',
           subTitle:'To continue, agree with our terms of use!',
@@ -165,6 +173,7 @@ export class Register {
       }
 
       if ( errors.length > 0 ) {
+        this.vibration.vibrate(300);
         this.errors = errors;
 
         return;

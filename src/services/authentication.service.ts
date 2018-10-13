@@ -5,6 +5,7 @@ import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
 import { Config } from '../Libs/Config';
 import { SecureDataStorage } from '../Libs/SecureDataStorage';
+import { TokenService } from './token.service';
 
 @Injectable()
 export class AuthenticationService {
@@ -15,7 +16,10 @@ export class AuthenticationService {
   private checkEmailUsernameURL:string = this.mainUrl + 'api/register/checkemailusername';
   private resendConfirmationEmailURL:string = this.mainUrl + 'api/register/resend_confirmation_email';
 
-  constructor(private http:Http) {}
+  constructor(
+    private http:Http,
+    private tokenService:TokenService
+  ) { }
 
   public logIn(body) {
     return this._execute(this.logInURL,body);
@@ -49,8 +53,8 @@ export class AuthenticationService {
 
   public async logOut() {
     try {
-      const token = await SecureDataStorage.Instance().get('token');
-      const headers = this._headers();
+      const token:string = await this.tokenService.getActiveToken();
+      const headers:Headers = this._headers();
 
       await Promise.all([
         SecureDataStorage.Instance().remove('token'),
@@ -61,6 +65,8 @@ export class AuthenticationService {
       headers.append('Authorization','JWT ' + token);
 
       await this._execute(this.logOutURL,{ },headers).toPromise();
-    } catch(e) { }
+    } catch(e) {
+      throw e;
+    }
   }
 }

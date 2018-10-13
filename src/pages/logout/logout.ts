@@ -19,8 +19,7 @@ export class Logout {
       spinner:'bubbles', content:'Loging out...'
     });
 
-    loading.present();
-
+    await loading.present();
     await this.authenticationService.logOut();
 
     loading.dismiss();

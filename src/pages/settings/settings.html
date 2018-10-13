@@ -37,7 +37,6 @@
     <ion-list>
       <ion-item>
         <ion-label>Allow offline Messages
-
           <button (click)="displayOfflineMessagesInfo()">
             <ion-icon name="information-circle"></ion-icon>
           </button>
@@ -49,6 +48,22 @@
           [checked]="user && user.allow_offline_messages">
         </ion-toggle>
       </ion-item>
+
+      <ion-item>
+        <ion-label>Allow Push Notifications
+          <button (click)="displayPushInfo()">
+            <ion-icon name="information-circle"></ion-icon>
+          </button>
+        </ion-label>
+
+        <ion-toggle
+          (ionChange)="togglePush()"
+          [(ngModel)]="isPushEnabled"
+          [checked]="user && user.push_notifications_enabled"
+        >
+        </ion-toggle>
+      </ion-item>
+
       <ion-item>
         <ion-label>Use app only on this device
 

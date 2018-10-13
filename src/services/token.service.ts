@@ -4,12 +4,13 @@ import { APIService } from './api.service';
 import { Config } from '../Libs/Config';
 import { SecureDataStorage } from '../Libs/SecureDataStorage';
 
-// token lasts for 25 minutes, refresh at every 10 minutes
 @Injectable()
 export class TokenService {
   private _interval;
   private _intervalSeconds:number = 1000 * 60 * 10;
   private _refreshingStarted:boolean = false;
+  private _cachedRefreshToken:string;
+  private _cachedToken:string;
 
   constructor(
     private apiService:APIService,
@@ -28,12 +29,30 @@ export class TokenService {
     }
   }
 
+  public async getActiveToken():Promise<string> {
+    const token = this._cachedToken
+      ? this._cachedToken
+      : await SecureDataStorage.Instance().get('token');
+
+    return token;
+  }
+
+  public async getTokens():Promise<string[]> {
+    if ( this._cachedToken && this._cachedRefreshToken ) {
+      return [this._cachedToken,this._cachedRefreshToken];
+    }
+
+    const tokens = await Promise.all([
+      SecureDataStorage.Instance().get('token'),
+      SecureDataStorage.Instance().get('refreshToken')
+    ]);
+
+    return tokens;
+  }
+
   public async checkLoginStatus():Promise<boolean> {
     try {
-      const [ token,refreshToken ] = await Promise.all([
-        SecureDataStorage.Instance().get('token'),
-        SecureDataStorage.Instance().get('refreshToken')
-      ]);
+      const [ token,refreshToken ] = await this.getTokens();
 
       if ( !refreshToken || !token ) return false;
 
@@ -41,15 +60,19 @@ export class TokenService {
         token,refreshToken,deviceInfo:Config.getDeviceInfo()
       });
 
+      if ( !this._cachedRefreshToken ) {
+        this._cachedRefreshToken = refreshToken;
+      }
+
       if ( newRefreshToken ) { 
         await SecureDataStorage.Instance().set('refreshToken',newRefreshToken);
+        this._cachedRefreshToken = newRefreshToken;
       }
 
       const tokenToStore = newToken ? newToken : token;
 
       this.apiService.setToken(tokenToStore);
-      
-      await SecureDataStorage.Instance().set('token',tokenToStore);
+      this._cachedToken = tokenToStore;
     } catch(e) {
       return false;
     }
@@ -76,11 +99,10 @@ export class TokenService {
     const response = await this.apiService.refreshToken();
 
     this.apiService.setToken(response.token);
-
-    await SecureDataStorage.Instance().set('token',response.token);
+    this._cachedToken = response.token;
   }
 
-  private async _start() {
+  private async _start():Promise<void> {
     try {
       await this._getAndStoreToken();
     } catch(e) {
@@ -95,5 +117,7 @@ export class TokenService {
   public stopRefreshing():void {
     this._refreshingStarted = false;
     this._clearInterval();
+    this._cachedToken = '';
+    this._cachedRefreshToken = '';
   }
 }
