@@ -6,7 +6,6 @@ import { ErrorResolverService } from '../../services/errorResolver.service';
 import { Form } from '../../Libs/Form';
 import { Config } from '../../Libs/Config';
 import { APIService } from '../../services/api.service';
-import { AuthenticationService } from '../../services/authentication.service';
 import { SettingsService } from '../../services/settings.service';
 import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 
@@ -23,7 +22,8 @@ export class Settings {
     toggleOfflineMessages:0,
     toggleUniqueDevice:0,
     togglePinAuth:0,
-    togglePush:0
+    togglePush:0,
+    togglePINUnlockDevice:0
   };
 
   private user;
@@ -31,6 +31,7 @@ export class Settings {
   private isUniqueDeviceToggled:boolean = false;
   private isPinAuthToggled:boolean = false;
   private isPushEnabled:boolean = false;
+  private isPINUnlockEnabled:boolean = false;
 
   constructor(
     private friendsService:FriendsService,
@@ -39,7 +40,6 @@ export class Settings {
     private alertController:AlertController,
     private events:Events,
     private apiService:APIService,
-    private authenticationService:AuthenticationService,
     private settingsService:SettingsService
   ) { }
 
@@ -50,21 +50,24 @@ export class Settings {
         this.settingsService.fetchSettings()
       ]);
 
+      const pinUnlockDeviceEnabled:boolean = await this.settingsService.isPINUnlockDeviceSet();
+
       this.isToggled = this.user.allow_offline_messages;
       this.isUniqueDeviceToggled = this.user.unique_device;
       this.isPinAuthToggled = this.user.pin_login_enabled;
       this.isPushEnabled = this.user.push_notifications_enabled;
+      this.isPINUnlockEnabled = pinUnlockDeviceEnabled;
 
       await Config.storeInfo({
         pin_login_enabled:this.user.pin_login_enabled
       });
-
       // if it is false, it wont trigger ionchange
       // so call methods right away!
       if ( !this.user.allow_offline_messages ) this.calledTogglingMethods.toggleOfflineMessages = 1;
       if ( !this.user.unique_device ) this.calledTogglingMethods.toggleUniqueDevice = 1;
       if ( !this.user.pin_login_enabled ) this.calledTogglingMethods.togglePinAuth = 1;
       if ( !this.user.push_notifications_enabled ) this.calledTogglingMethods.togglePush = 1;
+      if ( !pinUnlockDeviceEnabled ) this.calledTogglingMethods.togglePINUnlockDevice = 1;
     } catch(e) {
       this.errorResolverService.presentAlertError('Friends List Error',e.errorCode);
     }
@@ -78,7 +81,134 @@ export class Settings {
       buttons:['OK']
     }).present();
   }
-  
+
+  private displayPINUnlockDeviceInfo():void {
+    this.alertController.create({
+      title:'PIN To Unlock Device',
+      message:`When you put application in background, you can set a PIN to unlock the device.
+      DO NOT use the same PIN for login if that is your prefered choice of logging in, instead choose 
+       a different one. This PIN is only for unlocking the device when you are already logged in, 
+      it is deleted when you decide to removed, and is changed every time you set it.`,
+      buttons:['OK']
+    }).present();
+  }
+
+  private async togglePINUnlockDevice():Promise<void> {
+    if ( this.calledTogglingMethods.togglePINUnlockDevice < 1 ) {
+      this.calledTogglingMethods.togglePINUnlockDevice++;
+
+      return;
+    }
+
+    if ( !this.isPINUnlockEnabled ) {
+      const loading = this.loadingController.create({
+        spinner:'bubbles',content:'Removing PIN...'
+      });
+
+      await loading.present();
+
+      await this.apiService.setBinarySettings({
+        setting:'pin_unlock_device_enabled',
+        value:0
+      });
+
+      await loading.dismiss();
+
+      this.settingsService.setSetting('pin_unlock_device_enabled',false);
+
+      return await this.settingsService.deletePINUnlockDevice();
+    }
+
+    const alert = this.alertController.create({
+      title:'PIN To Unlock Device',
+      message:'Enter 4 digit PIN, no leading zeros',
+      inputs:[{
+        name:'pin',
+        placeholder:'PIN...',
+        type:'password'
+      },{
+        name:'pinConfirmed',
+        placeholder:'Confirm PIN...',
+        type:'password'
+      }],
+      buttons:[{
+        text:'Set',
+        handler:({ pin,pinConfirmed }):any => {
+          const form = new Form({
+            pin:'bail|required|regex:^[1-9][0-9]{3}$|same:pinConfirmed',
+            pinConfirmed:'bail|required'
+          });
+      
+          form.setCustomErrorMessages({
+            pin:[
+              ['required','PIN is required.'],
+              ['regex','Enter valid PIN (4 digit number).'],
+              ['same','Confirm your PIN']
+            ]
+          });
+      
+          form.bindValues({ pin,pinConfirmed });
+          form.validate();
+
+          if ( form.isValid() ) {
+            this.setPinUnlockDevice(pin);
+          } else {
+            const alert = this.alertController.create({
+              title:'PIN',
+              message:form.errorMessages()[0],
+              buttons:['OK']
+            });
+      
+            alert.present();
+
+            return false;
+          }
+        }
+      },{
+        text:'Cancel',
+        role:'cancel',
+        handler:() => {
+          this.calledTogglingMethods.togglePINUnlockDevice = 0;
+          this.isPINUnlockEnabled = !this.isPINUnlockEnabled;
+        }
+      }]
+    });
+
+    alert.present();
+  }
+
+  private async setPinUnlockDevice(pin:string):Promise<void> {
+    try {
+      const loading = this.loadingController.create({
+        spinner:'bubbles', content:'Setting PIN...'
+      });
+
+      await loading.present();
+
+      await this.apiService.setBinarySettings({
+        setting:'pin_unlock_device_enabled',
+        value:1
+      });
+
+      await this.settingsService.setPINUnlockDevice(pin);
+      await loading.dismiss();
+
+      this.settingsService.setSetting('pin_unlock_device_enabled',true);
+
+      this.alertController.create({
+        title:'PIN Error',
+        message:'Pin to unlock the device is successfully set.',
+        buttons:['OK']
+      }).present();
+    } catch(e) {
+      this.alertController.create({
+        title:'PIN Error',
+        message:'Error occured while trying to set PIN. Please try again.',
+        buttons:['OK']
+      }).present();
+    }
+  }
+
   private async togglePush() {
     if ( this.calledTogglingMethods.togglePush < 1 ) {
       this.calledTogglingMethods.togglePush++;
@@ -251,7 +381,6 @@ export class Settings {
       loading.dismiss();
     }
   }
-
   // add checks before every call, if it is first time calling
   // ion change unnecessarily triggers change event first time
   // so just return 
@@ -605,7 +734,7 @@ export class Settings {
       }).present();
  
       SecureDataStorage.Instance().clear();
-      this.authenticationService.logOut();
+      this.apiService.logOut();
       this.events.publish('user:logout');
     } catch(e) {
       this.errorResolverService.presentAlertError('Fatal Error',e.errorCode);

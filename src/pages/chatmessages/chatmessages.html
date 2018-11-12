@@ -12,8 +12,12 @@
 <ion-content padding [class]="scrollable">
   <ion-list class="list">
     <div *ngFor="let message of messages; let i = index;">
-      <ion-item text-wrap [attr.class]="message.user == null ? 'red' : 'blue'">
-        {{ message.message }}
+      <ion-item text-wrap [attr.class]="message.id_sending !== user?.id_user ? 'red' : 'blue'">
+        <span class="msg-date">{{ getDate(message) }}</span>
+        <br/>
+        <span class="msg-message">
+          {{ message.message }}
+        </span>
       </ion-item>
     </div>
   </ion-list>

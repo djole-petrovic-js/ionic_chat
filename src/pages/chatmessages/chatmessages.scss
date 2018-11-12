@@ -1,7 +1,15 @@
 page-chatmessages {
+  .msg-date {
+    font-size: 80%;
+  }
+
+  .msg-message {
+    font-size: 130%;
+  }
+
   .no-scroll {
     .scroll-content {
-        overflow: hidden !important;
+      overflow: hidden !important;
     }
   }
 
@@ -11,11 +19,8 @@ page-chatmessages {
   }
 
   .item-inner {
-    // border-radius: 4%;
-    width:75%;
     font-size: 110%;
     padding: 0.5% 5% 0.5% 5%;
-    // width:auto;
     width: 90%;
     display:block;
   }

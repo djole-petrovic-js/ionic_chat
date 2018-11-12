@@ -6,17 +6,16 @@ import { APIService } from '../../services/api.service';
 import { ErrorResolverService } from '../../services/errorResolver.service';
 import { TokenService } from '../../services/token.service';
 import { SocketService } from '../../services/socket.service';
-import { SettingsService } from '../../services/settings.service';
 import { Config } from '../../Libs/Config';
 import { Form } from '../../Libs/Form';
 import { SecureDataStorage } from '../../Libs/SecureDataStorage';
 import { PincodeController, PinCode } from 'ionic2-pincode-input';
 import { NetworkService } from '../../services/network.service';
-import { MessagesService } from '../../services/messages.service';
+import { AppService } from '../../services/app.service';
 
 @Component({
-  selector: 'page-home',
-  templateUrl: 'login.html',
+  selector:'page-home',
+  templateUrl:'login.html',
   providers:[ErrorResolverService]
 })
 export class LogIn {
@@ -36,14 +35,13 @@ export class LogIn {
     private authenticationService:AuthenticationService,
     private apiService:APIService,
     private tokenService:TokenService,
-    private settingsService:SettingsService,
     private events:Events,
     private errorResolverService:ErrorResolverService,
     private loadingController:LoadingController,
     private alertController:AlertController,
     private platform:Platform,
     private pincodeCtrl:PincodeController,
-    private messagesService:MessagesService
+    private appService:AppService
   ) { }
 
   async ionViewWillEnter() {
@@ -70,18 +68,20 @@ export class LogIn {
       const isLoggedIn = await this.tokenService.checkLoginStatus();
 
       if ( isLoggedIn ) {
-        this.settingsService.toggleMainLoadingScreen();
-        // get all operations, socket service will execute just the ones
-        // that are new messages, not friend request notifications etc.
-        const [ { operations } ] =  await Promise.all([
-          this.apiService.getSocketOperations(),
-          this.apiService.changeLoginStatus({ status:1 }),
-        ]);
+        const isOnWifi = await this.networkService.connectedViaWiFi();
 
-        this.messagesService.setTempMessages(operations);
+        if ( isOnWifi ) {
+          await Promise.all([
+            this.apiService.deleteOperations({  }),
+            this.apiService.changeLoginStatus({ status:1 }),
+          ]);
+        } else {
+          await this.apiService.bundledStartupOperations({ status:1 });
+        }
 
-        await this.apiService.deleteOperations({  });
-        try { await loading.dismiss(); } catch(e) { }
+        await this.appService.loadData();
+        this.appService.setShouldAskForPIN(true);
+        loading.dismiss();
 
         return this.events.publish('user:loggedin');
       }
@@ -225,16 +225,19 @@ export class LogIn {
           SecureDataStorage.Instance().set('socketIoToken',response.socketIoToken)
         ]);
 
-        const { operations } = await this.apiService.getSocketOperations();
+        const isOnWifi = await this.networkService.connectedViaWiFi();
 
-        this.messagesService.setTempMessages(operations)
+        if ( isOnWifi ) {
+          await Promise.all([
+            this.apiService.deleteOperations({  }),
+            this.apiService.changeLoginStatus({ status:1 }),
+          ]);
+        } else {
+          await this.apiService.bundledStartupOperations({ status:1 });
+        }
 
-        await Promise.all([
-          this.apiService.deleteOperations({  }),
-          this.apiService.changeLoginStatus({ status:1 }),
-        ]);
+        await this.appService.loadData();
         
-        this.settingsService.toggleMainLoadingScreen();
         this.events.publish('user:loggedin');
       } catch(e) {
         this.alertController.create({

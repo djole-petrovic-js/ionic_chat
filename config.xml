@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="com.nohistorychat.NoHistoryChat" version="2.1.0" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
+<widget id="com.nohistorychat.NoHistoryChat1" version="2.2.2" xmlns="http://www.w3.org/ns/widgets" xmlns:cdv="http://cordova.apache.org/ns/1.0">
     <name>No History Chat</name>
     <description>Simple chat application that protects your privacy!</description>
     <author email="djordje.petrovic91@protonmail.com">Djordje Petrovic</author>
@@ -22,6 +22,7 @@
     <preference name="SplashScreenDelay" value="3000" />
     <preference name="KeyboardDisplayRequiresUserAction" value="false" />
     <platform name="android">
+        <resource-file src="resources/icon.png" target="app/src/main/resources/drawable/icon.png" />
         <allow-intent href="market:*" />
         <icon density="ldpi" src="resources/android/icon/drawable-ldpi-icon.png" />
         <icon density="mdpi" src="resources/android/icon/drawable-mdpi-icon.png" />
@@ -89,6 +90,7 @@
     <plugin name="cordova-plugin-ionic-keyboard" spec="^2.1.2" />
     <plugin name="cordova-plugin-ionic-webview" spec="^2.1.3" />
     <plugin name="cordova-plugin-network-information" spec="^2.0.1" />
+    <plugin name="cordova-plugin-privacyscreen" spec="^0.4.0" />
     <plugin name="cordova-plugin-secure-storage" spec="^2.6.8" />
     <plugin name="cordova-plugin-splashscreen" spec="~4.0.1" />
     <plugin name="cordova-plugin-statusbar" spec="2.2.1" />

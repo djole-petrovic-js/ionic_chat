@@ -7,8 +7,11 @@ import { Events } from 'ionic-angular';
 @Injectable()
 export class SettingsService {
   private settings;
-  private shouldDisplay:boolean = false;
+  private shouldConfigureSubscriptionsAndBackground:boolean = false;
+  private isPinUnlockSet:boolean = null;
+  private PINUnlockDevice:string = null;
   private settingsName:string = 'settings';
+  private pinUnlockDeviceName:string = 'pin:unlock_device';
   private shouldLoadFromServer:boolean = true;
 
   constructor(
@@ -16,21 +19,51 @@ export class SettingsService {
     private events:Events
   ){
     this.events.subscribe('user:logout',() => {
-      this.shouldDisplay = false;
       this.settings = null;
     });
   }
 
-  public toggleMainLoadingScreen() {
-    this.shouldDisplay = !this.shouldDisplay;
+  public async setPINUnlockDevice(pin:string):Promise<void> {
+    await SecureDataStorage.Instance().set(this.pinUnlockDeviceName,pin);
+    this.isPinUnlockSet = true;
+    this.PINUnlockDevice = pin;
   }
 
-  public shouldDisplayMainLoadingScreen():boolean {
-    return this.shouldDisplay;
-  } 
+  public async deletePINUnlockDevice():Promise<void> {
+    this.isPinUnlockSet = false;
+    this.PINUnlockDevice = null;
+    await SecureDataStorage.Instance().remove(this.pinUnlockDeviceName);
+  }
+
+  public isPINUnlockDeviceSetSync():boolean {
+    return this.isPinUnlockSet;
+  }
+
+  public async isPINUnlockDeviceSet():Promise<boolean> {
+    if ( this.PINUnlockDevice ) return true;
+
+    return !!( await this.getPINUnlockDevice() );
+  }
+
+  public getPINUnlockDeviceSync() {
+    return this.PINUnlockDevice;
+  }
+
+  public async getPINUnlockDevice():Promise<string> {
+    const pin:string = await SecureDataStorage.Instance().get(this.pinUnlockDeviceName);
+
+    return pin;
+  }
 
   public areSettingsLoaded():boolean {
-    return !!this.settings;
+    if ( !this.shouldConfigureSubscriptionsAndBackground ) {
+      this.shouldConfigureSubscriptionsAndBackground = true;
+
+      return false;
+    }
+
+
+    return this.shouldConfigureSubscriptionsAndBackground;
   }
 
   public async setSetting(key:string,value:any) {
@@ -41,8 +74,18 @@ export class SettingsService {
     }
   }
 
+  public setSettings(settings) {
+    this.settings = settings;
+  }
+
   public async fetchSettings() {
     try {
+      if ( this.isPinUnlockSet === null) {
+        [this.isPinUnlockSet,this.PINUnlockDevice] = await Promise.all([
+          this.isPINUnlockDeviceSet(),this.getPINUnlockDevice()
+        ]);
+      }
+
       if ( this.settings ) {
         return this.settings;
       }

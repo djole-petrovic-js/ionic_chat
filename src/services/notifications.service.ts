@@ -37,6 +37,11 @@ export class NotificationsService {
     this.notifications = [];
   }
 
+  public setNotifications(notifications):void {
+    this.notifications = notifications;
+    this.areNotificationsLoaded = true;
+  }
+
   public getNotifications() {
     return new Promise((resolve,reject) => {
       if ( this.areNotificationsLoaded === true ) {

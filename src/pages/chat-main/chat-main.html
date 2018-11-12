@@ -8,12 +8,6 @@
 </ion-header>
 
 <ion-content padding>
-  <ion-list *ngIf="notifications && notifications.length === 0">
-    <ion-item>
-      You have no notifications
-    </ion-item>
-  </ion-list>
-
   <ion-list *ngIf="notifications && notifications.length > 0">
     <button (click)="dismissAllNotifications()" ion-button block>Dismiss all notifications</button>
     <ion-item *ngFor="let notification of notifications" text-wrap>
@@ -59,7 +53,9 @@
   </ion-list>
 
   <ion-list *ngIf="friends && friends.length > 0">
-    <ion-title>Friends</ion-title>
+    <ion-title>
+      Friends
+    </ion-title>
     <ion-item *ngFor="let friend of friends">
       <button
         style="text-transform: none;"
@@ -68,7 +64,7 @@
         (click)="startChatting({ username:friend.username, id:friend.id_user })" 
         ion-button block color="primary"
       >
-      {{ unreadMessages[friend.username] ? ['(',unreadMessages[friend.username].length,')'].join("") : '' }}
+      {{ unreadMessages[friend.id_user] ? ['(',unreadMessages[friend.id_user],')'].join("") : '' }}
       {{ friend.username }}
       </button>
     </ion-item>

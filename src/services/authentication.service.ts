@@ -4,21 +4,17 @@ import { Observable } from 'rxjs/Rx';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
 import { Config } from '../Libs/Config';
-import { SecureDataStorage } from '../Libs/SecureDataStorage';
-import { TokenService } from './token.service';
 
 @Injectable()
 export class AuthenticationService {
   private mainUrl:string = Config.getConfig('API_URL');
   private logInURL:string = this.mainUrl + 'api/login';
-  private logOutURL:string = this.mainUrl + 'api/login/logout';
   private registerURL:string = this.mainUrl + 'api/register';
   private checkEmailUsernameURL:string = this.mainUrl + 'api/register/checkemailusername';
   private resendConfirmationEmailURL:string = this.mainUrl + 'api/register/resend_confirmation_email';
 
   constructor(
     private http:Http,
-    private tokenService:TokenService
   ) { }
 
   public logIn(body) {
@@ -49,24 +45,5 @@ export class AuthenticationService {
     headers.append('Content-Type','application/json');
 
     return headers;
-  }
-
-  public async logOut() {
-    try {
-      const token:string = await this.tokenService.getActiveToken();
-      const headers:Headers = this._headers();
-
-      await Promise.all([
-        SecureDataStorage.Instance().remove('token'),
-        SecureDataStorage.Instance().remove('refreshToken'),
-        SecureDataStorage.Instance().remove('socketIoToken')
-      ]);
-
-      headers.append('Authorization','JWT ' + token);
-
-      await this._execute(this.logOutURL,{ },headers).toPromise();
-    } catch(e) {
-      throw e;
-    }
   }
 }

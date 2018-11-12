@@ -13,6 +13,7 @@ export class ErrorResolverService {
     // registration errors
     'REGISTER_DATA_NOT_VALID':'Please enter correct data',
     'REGISTER_USERNAME_EXISTS':'Username already exists.',
+    'REGISTER_DEVICE_EXISTS':'Account is already connected with this device. Use that account instead.',
     'REGISTER_EMAIL_EXISTS':'Email already exists',
     'REGISTER_EMAIL_BANNED':'You can not use this email to create your account. It has been banned. Please use another email.',
     'EMAIL_USERNAME_LOOKUP_FAILED':'',

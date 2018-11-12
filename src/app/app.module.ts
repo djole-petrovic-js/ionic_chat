@@ -15,6 +15,7 @@ import { Keyboard } from '@ionic-native/keyboard';
 import { FCM } from '@ionic-native/fcm';
 import { Vibration } from '@ionic-native/vibration';
 import { HTTP } from '@ionic-native/http';
+import { LockScreenModule, LockScreenComponent } from 'ionic-simple-lockscreen';
 
 import { ChatMain } from '../pages/chat-main/chat-main';
 import { LogIn } from '../pages/login/login';
@@ -47,7 +48,7 @@ import { NetworkService } from '../services/network.service';
     Search,
     ChatMessages,
     Settings,
-    About
+    About,
   ],
   imports: [
     BrowserModule,
@@ -59,6 +60,7 @@ import { NetworkService } from '../services/network.service';
       scrollAssist: false, 
       autoFocusAssist: false
     }),
+    LockScreenModule
   ],
   bootstrap: [IonicApp],
   entryComponents: [
@@ -70,7 +72,8 @@ import { NetworkService } from '../services/network.service';
     Search,
     ChatMessages,
     Settings,
-    About
+    About,
+    LockScreenComponent
   ],
   providers: [
     HTTP,

@@ -1,26 +1,31 @@
 import { Injectable } from '@angular/core';
 import { Events } from 'ionic-angular';
 import { APIService } from './api.service';
-import { ChatMessages } from '../pages/chatmessages/chatmessages';
-import { AppService } from './app.service';
 import { FriendsService } from './friends.service';
 import { Storage } from '@ionic/storage';
+import { AppService } from './app.service';
+import { ChatMessages } from '../pages/chatmessages/chatmessages';
 
 @Injectable()
 export class MessagesService {
-  private allMessages = {};
-  private allMessagesArray = [];
   private unreadMessages = {};
-  private messagesToDelete:number[] = [];
+  private messages:any[] = [];
+  private messagesForNonCurrentUser = {};
   private currentUserToChatWith:string;
-  private initialMessagesAreLoaded:boolean = false;
-  private currentUserID;
-  private tempMessages = [];
+  private currentUserID:number;
+  private lastCurrentUserToChatWith:string;
+  private lastCurrentUserID:number;
+  private loadedMessagesIDs:number[] = [];
+  private storageMessagesForRemoving:number[] = [];
   // use this when inserting messages from operations
   // so the view auto scrolls.
   private numberOfSocketMessages = 0;
-  private shouldSaveMessages:boolean = false;
-  private shouldSaveUnreadMessages:boolean = false;
+  private shouldDisplayLoading:boolean = false;
+  private shouldDeleteStorageMessages:boolean = true;
+
+  public shouldDisplayLoadingScreen():boolean {
+    return this.shouldDisplayLoading;
+  }
 
   public setNumberOfSocketMessages(n:number):void {
     this.numberOfSocketMessages = n;
@@ -33,9 +38,9 @@ export class MessagesService {
   constructor(
     private events:Events,
     private apiService:APIService,
-    private appService:AppService,
     private friendsService:FriendsService,
-    private localStorage:Storage
+    private storage:Storage,
+    private appService:AppService
   ) {
     this.events.subscribe('start:chatting',(data) => this.startChatting(data));
     this.events.subscribe('message:send',(data) => this.messageSend(data));
@@ -44,41 +49,77 @@ export class MessagesService {
   }
 
   private async startChatting({ username,id }) {
-    this.currentUserToChatWith = username;
-    this.currentUserID = id;
-    this._deleteInitialMessages(id);
+    if ( this.shouldDeleteStorageMessages ) {
+      const messagesFromStorageToDelete = await this.storage.get('messages:remove');
 
-    if ( this.unreadMessages[username] ) {
-      this.shouldSaveUnreadMessages = true;
-      delete this.unreadMessages[username];
+      if ( messagesFromStorageToDelete && messagesFromStorageToDelete.length > 0 ) {
+        await Promise.all(messagesFromStorageToDelete.map(id => this.storage.remove('messages:' + id)));
+      }
+
+      this.shouldDeleteStorageMessages = false;
     }
 
+    if ( this.currentUserID !== id ) {
+      this.currentUserToChatWith = username;
+      this.currentUserID = id;
+      this.shouldDisplayLoading = this.loadedMessagesIDs.indexOf(id) === -1;
+      this.messages = null;
+    }
+
+    if ( this.storageMessagesForRemoving.indexOf(this.currentUserID) === -1 ) {
+      this.storageMessagesForRemoving.push(this.currentUserID);
+      await this.storage.set('messages:remove',this.storageMessagesForRemoving);
+    }
+
+    this.lastCurrentUserID = null;
+    this.lastCurrentUserToChatWith = null;
+    delete this.unreadMessages[id];
     this.events.publish('start:chatting-ready');
+  }
+
+  public prepareMessagingState():void {
+    if ( this.lastCurrentUserID && this.lastCurrentUserToChatWith ) {
+      this.currentUserID = this.lastCurrentUserID;
+      this.currentUserToChatWith = this.lastCurrentUserToChatWith;
+      delete this.unreadMessages[this.currentUserID];
+    }
   }
 
   public getCurrentChattingUserObj() {
     return this.friendsService.getFriend(this.currentUserID);
   }
 
-  private async messageSend(message) {
-    if ( this.allMessages[this.currentUserToChatWith] ) {
-      this.allMessages[this.currentUserToChatWith].push({
-        user:null , message
-      });
-    } else {
-      this.allMessages[this.currentUserToChatWith] = [{ user:null,message }];
+  public getUnreadMessages() {
+    return this.unreadMessages;
+  }
+
+  public async releaseAndSave() {
+    if ( this.messages ) {
+      await this.storage.set('messages:' + this.currentUserID,this.messages);
     }
 
-    this.allMessagesArray.push({
-      senderUsername:this.currentUserToChatWith,
-      // user using this device has sent this message
-      // not user he is currently chatting.
-      // Important for displaying messages when app loads
-      deviceUserSentMessage:true,
-      message
-    });
+    this.lastCurrentUserID = this.currentUserID;
+    this.lastCurrentUserToChatWith = this.currentUserToChatWith;
+    this.currentUserToChatWith = null;
+    this.currentUserID = null;
+    this.messages = null;
+  }
 
-    this.shouldSaveMessages = true;
+  private async messageSend(message) {
+    const d:Date = new Date();
+
+    this.messages.push({
+      user:null,
+      id_sending:null,
+      message,
+      printDate:d.toLocaleDateString(),
+      printTime:d.toLocaleTimeString([],{
+        hour:'2-digit',
+        minute:'2-digit',
+        hour12:false
+      }),
+      day:d.getDay(),
+    });
 
     this.events.publish('message:send-ready',{
       userID:this.currentUserID,
@@ -87,132 +128,106 @@ export class MessagesService {
   }
 
   private async newMessage(data) {
-    const messageToStore = { user:data.senderUsername , message:data.message };
-    // If the page is ChatMessages and current user to chat with is
-    // user sending the message, dont store it as unread message
+    const d:Date = new Date(data.date);
+
+    const message = {
+      user:data.senderUsername,
+      message:data.message,
+      id_sending:data.id_sending,
+      printDate:d.toLocaleDateString(),
+      printTime:d.toLocaleTimeString([],{
+        hour:'2-digit',
+        minute:'2-digit',
+        hour12:false
+      }),
+      day:d.getDay()
+    };
+
     if ( !(
       this.appService.getActivePage().component === ChatMessages && 
       data.senderUsername === this.currentUserToChatWith
     ) ) {
-      this.shouldSaveUnreadMessages = true;
-      // now we store the message as unread
-      if ( !this.unreadMessages[data.senderUsername] ) {
-        this.unreadMessages[data.senderUsername] = [];
+      if ( this.unreadMessages[data.id_sending] ) {
+        this.unreadMessages[data.id_sending]++;
+      } else {
+        this.unreadMessages[data.id_sending] = 1;
       }
-
-      this.unreadMessages[data.senderUsername].push(messageToStore);
     }
 
-    if ( this.allMessages[data.senderUsername] ) {
-      this.allMessages[data.senderUsername].push(messageToStore);
+    if ( data.senderUsername === this.currentUserToChatWith ) {
+      this.messages.push(message);
     } else {
-      this.allMessages[data.senderUsername] = [messageToStore];
+      if ( this.loadedMessagesIDs.indexOf(data.id_sending) !== -1 ) {
+        if ( !this.messagesForNonCurrentUser[data.id_sending] ) {
+          this.messagesForNonCurrentUser[data.id_sending] = [];
+        }
+  
+        this.messagesForNonCurrentUser[data.id_sending].push(message);
+      }
     }
 
-    this.allMessagesArray.push(data);
-    this.shouldSaveMessages = true;
-
-    this.events.publish('message:message-recieved',{
-      user:data.senderUsername,
-      message:data.message
-    });
+    this.events.publish('message:message-recieved',message);
 
     if ( this.numberOfSocketMessages !== 0 ) {
       this.numberOfSocketMessages--;
     }
   }
 
-  public async getInitialMessages() {
-    try {
-      if ( this.initialMessagesAreLoaded ) return this.allMessages;
+  public async getMessages() {
+    if ( this.messages ) return this.messages;
 
-      let messagesFromOperations = this.tempMessages;
+    if ( this.loadedMessagesIDs.indexOf(this.currentUserID) !== -1 ) {
+      const messages = await this.storage.get('messages:' + this.currentUserID);
 
-      if ( messagesFromOperations.length > 0 ) {
-        messagesFromOperations = messagesFromOperations.map(message => {
-          return JSON.parse(message.data);
-        });
-
-        this.tempMessages = [];
-      } else {
-        messagesFromOperations = null;
-      }
-
-      let [ messages,unreadFromStorage,messagesFromStorage ] = await Promise.all([
-        this.apiService.getInitialMessages(),
-        this.localStorage.get('unreadMessages'),
-        this.localStorage.get('messages')
-      ]);
-
-      if ( messagesFromOperations ) {
-        messages = [...messagesFromOperations,...messages];
-      }
-
-      unreadFromStorage = unreadFromStorage || {};
-
-      this.unreadMessages = messages.reduce((unread,item) => {
-        if ( !unread[item.senderUsername] ) {
-          unread[item.senderUsername] = [];
+      if ( messages ) {
+        this.messages = messages;
+  
+        if ( this.messagesForNonCurrentUser[this.currentUserID] ) {
+          this.messages.push(...this.messagesForNonCurrentUser[this.currentUserID]);
+          delete this.messagesForNonCurrentUser[this.currentUserID];
         }
-
-        unread[item.senderUsername].push({ message:item.message,user:item.senderUsername });
- 
-        return unread;
-      },unreadFromStorage);
-      // unstable shutdowns could happend, so store every message in storage
-      // and delete only if user logs out, or he explicitly exits the app.
-      if ( messagesFromStorage ) {
-        messages = [...messagesFromStorage,...messages];
+      } else {
+        this.messages = [];
       }
 
-      this.initialMessagesAreLoaded = true;
-      this.allMessages = {};
-      this.allMessagesArray = messages;
-
-      await this.localStorage.set('messages',messages);
-
-      if ( messages.length !== 0 ) {
-        this._storeInitialMessages(messages);
-      }
-
-      return this.allMessages;
-    } catch(e) {
-      throw e;
-    }
-  }
-
-  public getMessages() {
-    if ( !this.allMessages[this.currentUserToChatWith] ) {
-      this.allMessages[this.currentUserToChatWith] = [];
+      return this.messages;
     }
 
-    return this.allMessages[this.currentUserToChatWith];
+    let messages = await this.apiService.getMessages({ id:this.currentUserID });
+
+    messages = messages.map(msg => {
+      const d = new Date(msg.date);
+
+      msg.printDate = d.toLocaleDateString();
+
+      msg.printTime = d.toLocaleTimeString([],{
+        hour: '2-digit',
+        minute:'2-digit',
+        hour12:false
+      });
+
+      msg.day = d.getDay();
+
+      return msg;
+    });
+
+    this.messages = messages;
+    this.shouldDisplayLoading = false;
+    this.loadedMessagesIDs.push(this.currentUserID);
+
+    return this.messages;
   }
 
-  public getUnreadMessages() {
-    return this.unreadMessages;
-  }
-
-  public setTempMessages(operations):void {
-    this.tempMessages = operations.filter(x => x.name === 'message:new-message');
-  }
-
-  public refreshInitialMessages():void {
-    this.initialMessagesAreLoaded = false;
-    this.getMessages();
-  }
-
-  public async saveMessages():Promise<boolean> {
+  public async deleteMessages():Promise<boolean> {
     try {
-      if ( this.shouldSaveMessages ) {
-        await this.localStorage.set('messages',this.allMessagesArray);
-        this.shouldSaveMessages = false;
-      }
+      await this.apiService.deleteMessages();
 
-      if ( this.shouldSaveUnreadMessages ) {
-        await this.localStorage.set('unreadMessages',this.unreadMessages);
-        this.shouldSaveUnreadMessages = false;
-      }
+      await Promise.all([
+        this.storage.remove('messages:remove'),
+        ...this.storageMessagesForRemoving.map(
+          id => this.storage.remove('messages:' + id)
+        )
+      ]);
 
       return true;
     } catch(e) {
@@ -220,61 +235,15 @@ export class MessagesService {
     }
   }
 
-  public async removeAllMessages():Promise<void> {
-    try {
-      await Promise.all([
-        this.localStorage.remove('messages'),
-        this.localStorage.remove('unreadMessages')
-      ]);
-    } catch(e) { }
-  }
-
-  private async userLogOut() {
-    this.allMessages = {};
+  public async userLogOut() {
+    this.loadedMessagesIDs = [];
+    this.currentUserToChatWith = null;
+    this.currentUserID = null;
+    this.lastCurrentUserID = null;
+    this.lastCurrentUserToChatWith = null;
+    this.messages = null;
+    this.deleteMessages();
     this.unreadMessages = {};
-    this.refreshInitialMessages();
-    await this.removeAllMessages();
-  }
-
-  private _storeInitialMessages(messages):void {
-    for ( const { message,senderUsername,senderID,deviceUserSentMessage } of messages ) {
-      const msg = { message,user:senderUsername };
-
-      if ( !this.allMessages[senderUsername] ) {
-        this.allMessages[senderUsername] = [];
-      }
-
-      if ( deviceUserSentMessage ) {
-        this.allMessages[senderUsername].push({
-          message,
-          user:null
-        });
-      } else {
-        this.allMessages[senderUsername].push(msg);
-      }
-
-      if ( senderID && this.messagesToDelete.indexOf(senderID) === -1 ) {
-        this.messagesToDelete.push(senderID);
-      }
-    }
-  }
-
-  private async _deleteInitialMessages(userID:number):Promise<void> {
-    if ( this.messagesToDelete.indexOf(userID) !== -1 ) {
-      try {
-        await this.apiService.deleteInitialMessages(userID);
-
-        const messageIndex = this.messagesToDelete.indexOf(userID);
-
-        if ( messageIndex !== -1 ) {
-          this.messagesToDelete.splice(messageIndex,1);
-        }
-      } catch(e) { 
-        // if user has problem with deleting initial messages
-        // as soon as he visits this page again with internet connection
-        // messages will be deleted,or when he restarts the application.
-        // So, it is ok to just do nothing if http exception occures.
-      }
-    }
+    this.messagesForNonCurrentUser = {};
   }
 }

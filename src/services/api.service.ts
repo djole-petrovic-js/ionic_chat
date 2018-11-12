@@ -4,13 +4,14 @@ import { Observable } from 'rxjs/Rx';
 import 'rxjs/add/operator/map';
 import 'rxjs/add/operator/catch';
 import { Config } from '../Libs/Config';
+import { SecureDataStorage } from '../Libs/SecureDataStorage';
+import { TokenService } from './token.service';
 
 @Injectable()
 export class APIService {
   private token:string;
   private mainURL = Config.getConfig('API_URL');
-  private deleteInitialMessagesURL:string = this.mainURL + 'api/messages/delete_messages/';
-  private initialMessagesURL:string = this.mainURL + 'api/messages/';
+  private deleteMessagesURL:string = this.mainURL + 'api/messages/delete_messages/';
   private dismissAllNotificationsURL:string = this.mainURL + 'api/notifications/dismiss_all';
   private dismissOneNofiticationURL:string = this.mainURL + 'api/notifications/dismiss'
   private getAllFriendsURL:string = this.mainURL + 'api/friends';
@@ -28,15 +29,28 @@ export class APIService {
   private deleteAccountURL:string = this.mainURL + 'api/users/delete_account';
   private grantAccessTokenURL:string = this.mainURL + 'api/login/grant_access_token';
   private changePinURL:string = this.mainURL + 'api/users/change_pin';
-  private getSocketOperationsURL:string = this.mainURL + 'api/users/get_socket_operations';
-  private deleteOperationsURL:string = this.mainURL + 'api/users/delete_operations';
   private changeLoginStatusURL:string = this.mainURL + 'api/login/change_login_status';
   private heartbeatURL:string = this.mainURL + 'api/login/heartbeat';
   private setFCMTokenURL:string = this.mainURL + 'api/users/set_fcm_token';
+  private getMessagesURL:string = this.mainURL + 'api/messages/get_messages';
+  private bundledDataURL:string = this.mainURL + 'api/users/bundled_data';
+  private bundledStartupOperationsURL:string = this.mainURL + 'api/login/bundled_startup_operations';
+  private deleteOperationsURL:string = this.mainURL + 'api/users/delete_operations';
+  private logOutURL:string = this.mainURL + 'api/login/logout';
 
   constructor(
     private http:Http,
   ) { }
+
+  public async deleteOperations(body) {
+    try {
+      const response = await this.http.post(this.deleteOperationsURL,body,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
 
   public setToken(token:string):void {
     this.token = token;
@@ -49,6 +63,52 @@ export class APIService {
     headers.append('Authorization','JWT ' + this.token);
 
     return headers;
+  }
+
+  public async logOut() {
+    try {
+      const response = await this.http.post(this.logOutURL,{},{ headers:this._headers() }).toPromise();
+
+      await Promise.all([
+        SecureDataStorage.Instance().remove('token'),
+        SecureDataStorage.Instance().remove('refreshToken'),
+        SecureDataStorage.Instance().remove('socketIoToken')
+      ]);
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
+  public async bundledStartupOperations(body) {
+    try {
+      const response = await this.http.post(this.bundledStartupOperationsURL,body,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
+  public async bundledData() {
+    try {
+      const response = await this.http.get(this.bundledDataURL,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
+  }
+
+  public async getMessages(body) {
+    try {
+      const response = await this.http.post(this.getMessagesURL,body,{ headers:this._headers() }).toPromise();
+
+      return response.json();
+    } catch(e) {
+      throw e.json();
+    }
   }
 
   public async setFCMToken(body) {
@@ -80,26 +140,6 @@ export class APIService {
   public async changeLoginStatus(body) {
     try {
       const response = await this.http.post(this.changeLoginStatusURL,body,{ headers:this._headers() }).toPromise();
-
-      return response.json();
-    } catch(e) {
-      throw e.json();
-    }
-  }
-
-  public async getSocketOperations() {
-    try {
-      const response = await this.http.get(this.getSocketOperationsURL,{ headers:this._headers() }).toPromise();
-
-      return response.json();
-    } catch(e) {
-      throw e.json();
-    }
-  }
-
-  public async deleteOperations(body) {
-    try {
-      const response = await this.http.post(this.deleteOperationsURL,body,{ headers:this._headers() }).toPromise();
 
       return response.json();
     } catch(e) {
@@ -199,19 +239,9 @@ export class APIService {
       .catch((error) => Observable.throw(error || 'Server error'));
   }
 
-  public async getInitialMessages() {
+  public async deleteMessages() {
     try {
-      const response = await this.http.get(this.initialMessagesURL,{ headers:this._headers() }).toPromise();
-
-      return response.json();
-    } catch(e) {
-      throw e.json();
-    }
-  }
-
-  public async deleteInitialMessages(userID:number) {
-    try {
-      const res = await this.http.post(this.deleteInitialMessagesURL,{ userID },{ headers:this._headers() }).toPromise();
+      const res = await this.http.post(this.deleteMessagesURL,{ },{ headers:this._headers() }).toPromise();
 
       return res.json();
     } catch(e) {

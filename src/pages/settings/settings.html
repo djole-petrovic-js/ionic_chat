@@ -66,10 +66,9 @@
 
       <ion-item>
         <ion-label>Use app only on this device
-
-        <button (click)="displayUniqueDeviceInfo()">
-          <ion-icon name="information-circle"></ion-icon>
-        </button>
+          <button (click)="displayUniqueDeviceInfo()">
+            <ion-icon name="information-circle"></ion-icon>
+          </button>
         </ion-label>
 
         <ion-toggle
@@ -87,6 +86,22 @@
           (ionChange)="togglePinAuth()"
           [(ngModel)]="isPinAuthToggled"
           [checked]="user && user.pin_login_enabled"
+        >
+        </ion-toggle>
+      </ion-item>
+
+      <ion-item>
+        <ion-label>
+          Use PIN to unlock the device.
+          <button (click)="displayPINUnlockDeviceInfo()">
+            <ion-icon name="information-circle"></ion-icon>
+          </button>
+        </ion-label>
+
+        <ion-toggle
+          (ionChange)="togglePINUnlockDevice()"
+          [(ngModel)]="isPINUnlockEnabled"
+          [checked]="isPINUnlockEnabled"
         >
         </ion-toggle>
       </ion-item>

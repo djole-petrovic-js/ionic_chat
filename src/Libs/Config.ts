@@ -9,7 +9,7 @@ export class Config {
     // use secure storage, instead of local storage
     IS_PRODUCTION:true,
     // use diferent name for storage if developing
-    USE_PRODUCTION_STORAGE:true,
+    USE_PRODUCTION_STORAGE:false,
     // use dummy data for device information if developing
     USE_REAL_DEVICE_INFO:true
   }

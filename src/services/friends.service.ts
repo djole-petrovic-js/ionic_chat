@@ -41,6 +41,7 @@ export class FriendsService {
       if ( this.pendingRequests ) {
         return this.pendingRequests;
       }
+
       this.pendingRequests = await this.apiService.getPendingRequests();
 
       return this.pendingRequests;
@@ -91,6 +92,15 @@ export class FriendsService {
     if ( ifExistsIndex === -1 ) {
       this.friends.push(friend);
     }
+  }
+
+  public setFriends(friends):void {
+    this.friendsLoaded = true;
+    this.friends = friends;
+  }
+
+  public setPendingFriends(pendingFriends):void {
+    this.pendingRequests = pendingFriends;
   }
 
   public deleteFriend(IdFriendToRemove) {

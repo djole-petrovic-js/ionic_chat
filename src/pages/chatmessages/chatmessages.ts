@@ -4,6 +4,7 @@ import { Events,AlertController,Content, ToastController, Keyboard as IonicKeybo
 import { Keyboard } from '@ionic-native/keyboard';
 import { Subscription } from 'rxjs';
 import { BackgroundMode } from 'ionic-native';
+import { LoadingController } from 'ionic-angular';
 
 @Component({
   selector: 'page-chatmessages',
@@ -28,13 +29,55 @@ export class ChatMessages {
     private messagesService:MessagesService,
     private events:Events,
     private alertController:AlertController,
-    private toastController:ToastController
+    private toastController:ToastController,
+    private loadingController:LoadingController
   ) { }
 
-  ionViewWillEnter() {
+  public getDate(message):string {
+    try {
+      const today:Date = new Date();
+      let dateStr:string = message.printTime;
+
+      if ( today.getDay() !== message.day ) {
+        const p = message.printDate.split('/');
+
+        dateStr += ` ${[p[1],p[0]].join('/')}`;
+      }
+
+      return dateStr;
+    } catch(e) {
+      return '';
+    }
+  }
+
+  async ionViewWillEnter() {
+    this.messagesService.prepareMessagingState();
     this.user = this.messagesService.getCurrentChattingUserObj();
-    this.messages = [];
-    this.messages = this.messagesService.getMessages();
+
+    let loading;
+
+    try {
+      if ( this.messagesService.shouldDisplayLoadingScreen() ) {
+        loading = this.loadingController.create({
+          spinner:'bubbles',content:'Loading Messages...'
+        });
+
+        await loading.present();
+
+        this.messages = await this.messagesService.getMessages();
+      } else {
+        this.messages = await this.messagesService.getMessages();
+      }
+    } catch(e) {
+      return this.alertController.create({
+        title:'Error',
+        message:'Error occured while trying to get messages. Please try again.',
+        buttons:['OK']
+      }).present();
+    } finally {
+      try { if ( loading ) loading.dismiss(); } catch(e) { }
+    }
+
     setTimeout(() => { this.content.scrollToBottom(0); },50);
     
     this.onKeyboardShowSubscriber = this.keyboardNative.onKeyboardShow().subscribe(() => this.scroll());
@@ -52,19 +95,32 @@ export class ChatMessages {
       }
     });
 
-    this.events.subscribe('message:message-recieved',this.messageReceived.bind(this));
-    this.events.subscribe('message:not-in-friends-list',this.notInFriendsList.bind(this));
+    this.events.subscribe('message:message-recieved',(msg) => this.messageReceived(msg));
+    this.events.subscribe('message:not-in-friends-list',() => this.notInFriendsList());
+    this.events.subscribe('message:error',() => this.onError());
   }
 
-  ionViewWillLeave() {
+  ionViewDidLeave() {
     this.events.unsubscribe('message:message-recieved');
     this.events.unsubscribe('message:not-in-friends-list');
+    this.events.unsubscribe('message:error');
     this.onKeyboardShowSubscriber.unsubscribe();
     this.onKeyboardHideSubscriber.unsubscribe();
+    this.messagesService.releaseAndSave();
   }
 
   private scroll() {
     setTimeout(() => { this.content.scrollToBottom(); },50);
+  }
+
+  private onError() {
+    const alert = this.alertController.create({
+      title:'Sending failed',
+      subTitle:'Message failed to send!',
+      buttons:['OK']
+    });
+
+    alert.present();
   }
 
   private notInFriendsList() {
@@ -86,7 +142,9 @@ export class ChatMessages {
           const toast = this.toastController.create({
             duration:3000,
             position:'top',
-            message:`${message.user}: ${message.message}`
+            message:`${message.user}: ${message.message}`,
+            showCloseButton:true,
+            closeButtonText:'OK'
           });
     
           toast.present();
@@ -97,7 +155,6 @@ export class ChatMessages {
     }
 
     if ( this.messagesService.shouldAutoScroll() ) {
-      this.messages = this.messagesService.getMessages();
       this.scroll();
 
       return;
@@ -106,7 +163,6 @@ export class ChatMessages {
     const dimensions = this.content.getContentDimensions();
     // making sure scroll is disabled while pushing new message into the page!
     this.scrollable = 'no-scroll';
-    this.messages = this.messagesService.getMessages();
     this.scrollable = '';
     // scroll to bottom when receives message, if already at the bottom!
     if ( this.keyboardIonic.isOpen() ) {
@@ -120,7 +176,9 @@ export class ChatMessages {
           const toast = this.toastController.create({
             duration:3000,
             position:'top',
-            message:`${message.user}: ${message.message}`
+            message:`${message.user}: ${message.message}`,
+            showCloseButton:true,
+            closeButtonText:'OK'
           });
     
           toast.present();
@@ -142,7 +200,6 @@ export class ChatMessages {
       }
 
       this.events.publish('message:send',this.message);
-      this.messages = this.messagesService.getMessages();
       this.message = '';
       this.scroll();
     }

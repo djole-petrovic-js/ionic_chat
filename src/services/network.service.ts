@@ -14,11 +14,21 @@ export class NetworkService {
   public hasInternetConnection():boolean {
     if ( !Config.getConfig('IS_PRODUCTION') ) return true;
 
-    if ( Network.type === "unknown" || Network.type === "none" || Network.type == undefined ) {
+    if ( Network.type === 'unknown' || Network.type === 'none' || Network.type == undefined ) {
       return false;
     } else {
       return true;
     }
+  }
+
+  public async connectedViaWiFi():Promise<boolean> {
+    if ( !Config.getConfig('IS_PRODUCTION') ) return true;
+
+    await this.platform.ready();
+
+    if ( Network.type === 'unknown' ) return false;
+
+    return Network.type === 'wifi';
   }
 
   public async heartbeat():Promise<boolean> {

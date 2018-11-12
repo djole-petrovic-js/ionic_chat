@@ -6,7 +6,10 @@ import { Config } from '../Libs/Config';
 import { SecureDataStorage } from '../Libs/SecureDataStorage';
 import * as moment from 'moment';
 import { TokenService } from './token.service';
-import { MessagesService } from './messages.service';
+import { FriendsService } from './friends.service';
+import { NotificationsService } from './notifications.service';
+import { SettingsService } from './settings.service';
+import { APIService } from './api.service';
 
 @Injectable()
 export class AppService {
@@ -16,21 +19,51 @@ export class AppService {
   private isTimeoutCalled:boolean = false;
   private lastSentToBackground:string = null;
   private _BackgroundFetch = (<any>window).BackgroundFetch;
-  private messagesService:MessagesService;
+  private shouldAskForPINUnlock:boolean = null;
 
   constructor(
     private app:App,
     private platform:Platform,
     private networkService:NetworkService,
     private http:HTTP,
-    private tokenService:TokenService
+    private tokenService:TokenService,
+    private friendsService:FriendsService,
+    private notificationsService:NotificationsService,
+    private settingsService:SettingsService,
+    private apiService:APIService,
   ) {
     this.fetchCB = this.fetchCB.bind(this);
     this.errorCB = this.errorCB.bind(this);
   }
 
-  public setMessagesServiceObj(service:MessagesService) {
-    this.messagesService = service;
+  public shoudAskForPIN():boolean {
+    return this.shouldAskForPINUnlock;
+  }
+
+  public setShouldAskForPIN(value:boolean):void {
+    this.shouldAskForPINUnlock = value;
+  }
+
+  public async loadData() {
+    const isOnWifi = await this.networkService.connectedViaWiFi();
+
+    if ( !isOnWifi ) {
+      let bundledData = await this.apiService.bundledData();
+
+      this.friendsService.setFriends(bundledData.friends);
+      this.friendsService.setPendingFriends(bundledData.pendingRequests);
+      this.notificationsService.setNotifications(bundledData.notifications);
+      this.settingsService.setSettings(bundledData.settings);
+
+      bundledData = null;
+    }
+
+    await Promise.all([
+      this.friendsService.getFriends(),
+      this.notificationsService.getNotifications(),
+      this.friendsService.getPendingRequets(),
+      this.settingsService.fetchSettings()
+    ]);
   }
 
   private async changeOnlineStatusAndExit() {
@@ -84,14 +117,11 @@ export class AppService {
   }
 
   private async fetchCB() {
-    await this.messagesService.saveMessages();
-
     if ( !this.lastSentToBackground ) {
-      this._BackgroundFetch.finish();
-      return;
+      return this._BackgroundFetch.finish();
     }
 
-    if ( moment().diff(moment(this.lastSentToBackground),'minutes') >= 35 ) {
+    if ( moment().diff(moment(this.lastSentToBackground),'minutes') >= 120 ) {
       this.changeOnlineStatusAndExit();
     } else {
       this._BackgroundFetch.finish();

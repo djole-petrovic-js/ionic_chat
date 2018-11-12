@@ -1,83 +1,56 @@
 import { Injectable } from '@angular/core';
 import { FriendsService } from './friends.service';
-import { Events,ViewController } from 'ionic-angular';
+import { Events, ViewController } from 'ionic-angular';
 import { ToastController } from 'ionic-angular';
 import * as io from 'socket.io-client';
 import { Config } from '../Libs/Config';
 import { SecureDataStorage } from '../Libs/SecureDataStorage';
 import { BackgroundMode } from 'ionic-native';
-import { APIService } from '../services/api.service';
 import { ChatMessages } from '../pages/chatmessages/chatmessages';
 import { AppService } from './app.service';
 import { MessagesService } from './messages.service';
+import { AlertController } from 'ionic-angular';
+import { LockScreenComponent } from 'ionic-simple-lockscreen';
 
 @Injectable()
 export class SocketService {
   private SOCKET_URL:string = Config.getConfig('API_URL');
-  private shouldLoadOperations:boolean = false;
   private socket;
   private subscribeToEvents:boolean = true;
-  private nav:ViewController;
-
-  public getSocket() {
-    return this.socket;
-  }
+  private failedReconnectionAttempts:number = 0;
+  private shouldPublicReconnectFailure:boolean = true;
 
   constructor(
     private events:Events,
     private friendsService:FriendsService,
     private toastController:ToastController,
-    private apiService:APIService,
+    private alertController:AlertController,
     private appService:AppService,
     private messagesService:MessagesService
   ) {
     this.events.subscribe('user:logout',() => {
       this.subscribeToEvents = true;
-      this.socket.disconnect();
+
+      if ( this.socket ) {
+        this.socket.disconnect();
+      }
+
       this.events.unsubscribe('message:send-ready');
       this.socket = null;
     });
   }
 
-  private findLastLoginLoginEvent(operations) {
-    for ( let i = operations.length - 1 ; i >= 0 ; i-- ) {
-      if ( ['friend:login','friend:logout'].indexOf(operations[i].name) !== -1 ) {
-        return operations[i].id_operation;
-      }
-    }
-
-    return null;
+  public getSocket() {
+    return this.socket;
   }
 
-  public async executeSocketOperations(forcedOperations?) {
+  private wait():Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve,3000));
+  }
+
+  public async executeSocketOperations(operations) {
     try {
-      let operations;
-
-      if ( forcedOperations ) {
-        operations = forcedOperations;
-      } else {
-        if ( !this.shouldLoadOperations ) return;
-
-        const response = await this.apiService.getSocketOperations();
-
-        operations = response.operations;
-      }
-
       if ( operations.length > 0 ) {
-        // first filter all login logout events, because there
-        // could be a lot of them, just find the last one and remove others
-        const lastLoginLogoutID = this.findLastLoginLoginEvent(operations);
-
-        if ( lastLoginLogoutID ) {
-          operations = operations.filter(op => {
-            if ( op.name === 'friend:login' || op.name === 'friend:logout' ) {
-              return op.id_operation === lastLoginLogoutID;
-            }
-
-            return true;
-          });
-        }
-
         let numberOfMessages:number = operations.reduce((total,item) => {
           if ( item.name === 'message:new-message') {
             total++;
@@ -87,8 +60,6 @@ export class SocketService {
         },0);
 
         this.messagesService.setNumberOfSocketMessages(numberOfMessages);
-
-        await this.apiService.deleteOperations({  });
 
         for ( let { name,data } of operations ) {
           const parsedData = JSON.parse(data);
@@ -114,14 +85,7 @@ export class SocketService {
             this.friendsService.userLogOut(parsedData);
           }
         }
-
-        // whoever forces operations, needs to delete them!
-        if ( !forcedOperations ) {
-          await this.apiService.deleteOperations({ });
-        }
       }
-
-      this.shouldLoadOperations = false;
     } catch(e) {
       throw e;
     }
@@ -139,9 +103,9 @@ export class SocketService {
 
         this.socket = io.connect(this.SOCKET_URL,{
           query:`id=${uuid}&auth_token=${token}`,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax : 5000,
-          reconnectionAttempts: Infinity,
+          reconnectionDelay:1000,
+          reconnectionDelayMax:5000,
+          reconnectionAttempts:Infinity,
           pingTimeout:4000,
           pingInterval:16000
         });
@@ -150,6 +114,23 @@ export class SocketService {
       if ( this.subscribeToEvents ) {
         this.socket.on('error', async(err) => {
           if ( typeof err === 'string' && err.toLowerCase().includes('token expired') ) {
+            if ( !this.shouldPublicReconnectFailure ) return;
+
+            if ( this.failedReconnectionAttempts > 3 ) {
+              this.alertController.create({
+                title:'Connection Error',
+                message:'Could not establish connection. Try to restart application.'
+              }).present();
+
+              this.socket.disconnect();
+              this.shouldPublicReconnectFailure = false;
+
+              return;
+            }
+
+            this.failedReconnectionAttempts++;
+            await this.wait();
+
             const token = await SecureDataStorage.Instance().get('socketIoToken');
             const uuid = Config.getDeviceInfo().uuid;
   
@@ -182,13 +163,18 @@ export class SocketService {
             this.events.publish('message:new-message',message);
 
             if ( !BackgroundMode.isActive() ) {
-              this.nav = this.appService.getActivePage();
+              const activePage:ViewController = this.appService.getActivePage();
 
-              if ( this.nav.component !== ChatMessages ) {
+              if (
+                activePage.component !== ChatMessages &&
+                activePage.component !== LockScreenComponent
+              ) {
                 const toast = this.toastController.create({
                   duration:3000,
                   position:'top',
-                  message:`${message.senderUsername}: ${message.message}`
+                  message:`${message.senderUsername}: ${message.message}`,
+                  showCloseButton:true,
+                  closeButtonText:'OK'
                 });
           
                 toast.present();
@@ -196,6 +182,14 @@ export class SocketService {
             }
 
             ack({ success:true });
+          });
+
+          this.socket.on('operations:new_operations',(data) => {
+            this.executeSocketOperations(data.operations);
+          });
+
+          this.socket.on('message:error',() => {
+            this.events.publish('message:error');
           });
           
           this.socket.on('friend:login',(data,ack) => {
@@ -235,9 +229,7 @@ export class SocketService {
             this.socket.emit('new:message',message);
           });
 
-          this.socket.on('disconnect',() => {
-            this.shouldLoadOperations = true;
-          });
+          this.socket.on('disconnect',() => { });
 
           this.subscribeToEvents = false;
         }
